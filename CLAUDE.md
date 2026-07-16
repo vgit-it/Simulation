@@ -2,6 +2,20 @@
 
 Guidance for Claude Code (and humans) working in this repository.
 
+> **This is living documentation — keep it current.** It is the single source
+> of truth for how this project works and where it's going. Whenever a change
+> makes something here inaccurate, update it **in the same change**:
+> - **Milestones:** when a milestone lands, mark it ✅ and move the "next"
+>   pointer forward; add or re-scope milestones as plans evolve.
+> - **Architecture / layout / data flow:** update when files, layers, or the
+>   flow between them change.
+> - **Principles & conventions:** update if a rule is added, dropped, or
+>   changed (and make the code match).
+> - **Recipes & commands:** update when the steps to extend the project or the
+>   npm scripts change.
+> Treat a PR that changes behavior but leaves this file stale as incomplete.
+> When in doubt, err toward updating it.
+
 ## What this project is
 
 **Simulation** is a simulated world of people and their devices (phones, and
