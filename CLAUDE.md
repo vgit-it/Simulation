@@ -129,8 +129,9 @@ src/
     index.ts                   # provider selection + intelligenceFor(personId)
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
+  assistant/                   # persistent assistant: suggestions + activity feed
   theme/                       # theme tokens -> CSS variables
-  phone/                       # DeviceFrame, StatusBar, Lock/HomeScreen, Phone, DevBar
+  phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
@@ -183,6 +184,11 @@ builder and a `case` in `propose()` (`src/actions/index.ts`); render its
 `Proposal` (reuse `ProposalSheet`) and call `commit` on confirm. This one path
 powers both the assistant and scenarios.
 
+**Add an assistant suggestion:** extend `suggestShares` (or a sibling method) on
+the brain (`src/intelligence/mock.ts`) to return `Suggestion`s; the assistant
+(`src/assistant/Assistant.tsx`) renders them and turns a tap into
+`propose(intent, ctx, …)`. Suggestions are proactive pre-proposals, nothing more.
+
 **Read/track runtime data:** read via selectors (`src/state/selectors.ts`) and a
 `useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
 log is persisted automatically, so anything you record survives reloads.
@@ -227,7 +233,7 @@ Interactive phone (lock → home → app), one seed person (Ava), and the **Phot
 app: a time-grouped gallery whose grouping and "people in photo" come from the
 mock intelligence + metadata. Themeable, content-driven, deployable.
 
-### M1.5 — Foundation ✅ (current)
+### M1.5 — Foundation ✅
 
 The architectural spine that makes the later milestones cheap:
 - **Runtime state** = event log + reducer + selectors (`src/state`), persisted to
@@ -244,19 +250,23 @@ The architectural spine that makes the later milestones cheap:
 - **Clock** routed through the store (`useNow`); load-time **integrity check**;
   **vitest** harness; **dev bar** (sim time / device switch / reset).
 
-### M2 — Assistant surface (next)
+### M2 — Assistant surface ✅ (current)
 
-Promote the minimal `ProposalSheet` into a first-class assistant: a persistent
-entry point (not just per-photo), multi-photo/multi-select share, an inbox/
-activity view of sent items, and richer proposals (e.g. "share **this week's**
-photos with the people in them" in one shot). Still deterministic; builds
-entirely on the M1.5 pipeline — mostly new intents + UI, little new plumbing.
+A persistent assistant (floating ✨, pinned via the `DeviceFrame` overlay slot,
+available from any unlocked screen). It offers proactive **suggestions** from the
+brain (`suggestShares` — e.g. "share this week's photos with the people in
+them"); one tap turns a suggestion into a `Proposal` you approve. It also shows a
+running **activity feed** of sent items (read from the persisted event log).
+Photos gained a **multi-select** mode that shares many photos in one proposal.
+All built on the M1.5 pipeline — new UI + one brain method, no new plumbing.
 
-### M3 — Multiple people + contacts graph
+### M3 — Multiple people + contacts graph (next)
 
 Several seed people, each with their own device(s). Photo `people:` resolve to
 real people in the world (not just lightweight contacts), enabling cross-person
-references and laying groundwork for scenarios.
+references and laying groundwork for scenarios. Natural follow-ons deferred from
+M2: an inbox/thread view (not just the assistant's flat feed) and recipients
+actually "receiving" shares on their own devices.
 
 ### M4 — Scenarios
 
