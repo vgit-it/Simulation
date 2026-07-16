@@ -1,9 +1,9 @@
-import { world, type LoadedPerson, type World } from './loader';
+import { world, validateIntegrity, type LoadedPerson, type World } from './loader';
 import type { AppDefinition, Device, Theme } from './schema';
 
 export type { World, LoadedPerson };
 export type { AppDefinition, Contact, Device, Theme, Photo } from './schema';
-export { world };
+export { world, validateIntegrity };
 
 export function getPerson(personId: string): LoadedPerson {
   const person = world.people[personId];

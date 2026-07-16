@@ -1,14 +1,21 @@
-import { BOOT_DEVICE_ID, BOOT_PERSON_ID } from './config';
+import { SessionProvider } from './session';
+import { StoreProvider } from './state';
 import { Phone } from './phone/Phone';
+import { DevBar } from './phone/DevBar';
 
 /**
- * Stage: centers the booting device on the page. Later this can host multiple
- * devices side by side or a device switcher.
+ * Stage: mounts the runtime providers and centers the hero device. Later this
+ * can host multiple devices side by side or a person switcher.
  */
 export function App() {
   return (
-    <div className="flex min-h-full items-center justify-center bg-[#05070d] p-4">
-      <Phone personId={BOOT_PERSON_ID} deviceId={BOOT_DEVICE_ID} />
-    </div>
+    <StoreProvider>
+      <SessionProvider>
+        <div className="flex min-h-full flex-col items-center justify-center bg-[#05070d] p-4">
+          <Phone />
+          <DevBar />
+        </div>
+      </SessionProvider>
+    </StoreProvider>
   );
 }

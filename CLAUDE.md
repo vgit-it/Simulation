@@ -47,21 +47,30 @@ contacts, photos, etc.).
 1. **Content ≠ code.** Growing the world means editing `world/`, never `src/`.
    If a change to the world requires editing engine code, the engine is missing
    an abstraction — add the abstraction instead of special-casing content.
-2. **Everything smart goes through the intelligence adapter.** Any derived /
-   "smart" result the UI shows must come from `IntelligenceProvider`
-   (`src/intelligence/`). Never hardcode a smart result in a component, and never
-   call an LLM directly from a component.
-3. **Deterministic by default.** Use the simulation clock (`SIM_NOW` in
-   `src/config.ts`), not `Date.now()`. The world must behave identically no
-   matter when it runs.
-4. **Modular & additive.** Adding an app, theme, person, or device should be
+2. **Authored seed vs runtime state.** `world/` is the read-only seed. Everything
+   mutable (messages sent, facts tracked, the clock) lives in the **event log**
+   (`src/state/`) and is derived by reducer. Never mutate the seed at runtime;
+   change the world by dispatching an event, and read runtime data via selectors.
+3. **Everything smart goes through the intelligence adapter.** Any derived /
+   "smart" result the UI shows must come from a person's brain
+   (`intelligenceFor(personId)`, `src/intelligence/`). Never hardcode a smart
+   result in a component, and never call an LLM directly from a component.
+4. **All actions go through the pipeline.** User/assistant/scenario actions use
+   `propose(intent, ctx, …) → Proposal → commit(proposal, dispatch)`
+   (`src/actions/`). Don't dispatch effect events straight from a component;
+   build a proposal so the same path serves the assistant and scenarios.
+5. **Deterministic by default.** Read time from the store clock (`useNow` /
+   `selectNow`), never `Date.now()`. `SIM_START` (`src/config.ts`) is only the
+   initial value. The world must behave identically whenever it runs.
+6. **Modular & additive.** Adding an app, theme, person, or device should be
    drop-a-file (+ at most one registry line). Prefer registries and data over
    conditionals.
-5. **Validate loudly.** All authored content is schema-checked on load (`zod`).
-   Malformed files must fail with the file path and the exact problem, not
-   silently mis-render.
-6. **No tokens unless asked.** The default provider is `mock`. Do not wire real
-   LLM calls unless the task explicitly calls for it.
+7. **Validate loudly.** All authored content is schema-checked (`zod`) and
+   cross-references are integrity-checked on load. Malformed content must fail
+   with the file path and the exact problem, not silently mis-render.
+8. **No tokens unless asked.** The default provider is `mock`. Do not wire real
+   LLM calls unless the task explicitly calls for it; the mock must always remain
+   a working, offline provider.
 
 ## Tech stack
 
@@ -81,6 +90,7 @@ npm install
 npm run dev        # dev server
 npm run build      # tsc -b && vite build  (must pass before committing)
 npm run preview    # serve the production build
+npm run test       # vitest (reducer, brain, integrity)
 npm run typecheck  # types only
 ```
 
@@ -98,34 +108,46 @@ world/                         # CONTENT — authored, no code
       gallery/<id>.yaml        # metadata sidecar: date, location, people[], tags[]
       documents/               # (reserved)
   themes/<theme>.md            # visual identity tokens (colors, radii, font)
-  scenarios/                   # (reserved for M3)
+  scenarios/                   # (reserved for M4)
 src/
-  config.ts                    # SIM_NOW, BOOT_PERSON/DEVICE, provider choice
-  world/                       # loaders + zod schemas -> typed World + selectors
+  config.ts                    # SIM_START, HERO_PERSON/DEVICE, provider choice
+  world/                       # loaders + zod schemas -> typed seed World + selectors
     frontmatter.ts             # browser-safe frontmatter/YAML parsing
     schema.ts                  # zod schemas + inferred types
-    loader.ts                  # import.meta.glob discovery -> World
-    index.ts                   # World selectors (getPerson/getDevice/getApp/...)
-  intelligence/                # IntelligenceProvider interface + MockIntelligence
-    types.ts                   # the adapter contract
+    loader.ts                  # import.meta.glob discovery + integrity check -> World
+    index.ts                   # World selectors (getPerson/getDevice/resolvePerson/...)
+  state/                       # runtime state: event log, reducer, store (mutable)
+    events.ts                  # SimEvent union (MessageSent, FactRecorded, ...)
+    reducer.ts                 # apply/reduce/hydrate + RuntimeState
+    selectors.ts               # selectNow, messagesFrom, factsFor, ...
+    persistence.ts             # localStorage load/save/clear of the log
+    store.tsx                  # StoreProvider, useStore, useNow
+  session/                     # POV: which person+device is embodied (hero) + switch
+  intelligence/                # IntelligenceProvider.for(personId) -> person brain
+    types.ts                   # the adapter contract (PersonIntelligence)
     mock.ts                    # deterministic implementation
-    index.ts                   # provider selection (config-driven)
+    index.ts                   # provider selection + intelligenceFor(personId)
+  context/                     # assembleContext(session, state, situation) -> bundle
+  actions/                     # propose/commit pipeline + ProposalSheet UI
   theme/                       # theme tokens -> CSS variables
-  phone/                       # DeviceFrame, StatusBar, LockScreen, HomeScreen, Phone
+  phone/                       # DeviceFrame, StatusBar, Lock/HomeScreen, Phone, DevBar
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
-    photos/                    # the Photos app (M1)
-  App.tsx                      # stage: centers the booting device
+    photos/                    # the Photos app (gallery + detail + share)
+  App.tsx                      # stage: providers + hero device + dev bar
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
 ```
 
 ### Data flow
 
-`world/` files → validated loader (`src/world`) → typed `World` object → phone
-shell (`src/phone`) renders apps → apps ask the intelligence adapter
-(`src/intelligence`) for derived results.
+`world/` files → validated loader (`src/world`) → typed **seed** `World`.
+`src/state` holds the **runtime** state (event log → derived state). The phone
+shell (`src/phone`) reads the embodied POV from `src/session`, renders apps, and
+apps ask the person's **brain** (`src/intelligence`) for derived results and the
+**action pipeline** (`src/actions`) to propose/commit effects, which dispatch
+events back into the store.
 
 ## How to extend (recipes)
 
@@ -150,16 +172,27 @@ folder name.
 3. Register it in `src/apps/registry.ts` (one line).
 4. Add the app id to a device's `apps:` list so it appears on the home screen.
 
-**Add intelligence:** extend the `IntelligenceProvider` interface
-(`src/intelligence/types.ts`), implement it in `MockIntelligence`
-(`src/intelligence/mock.ts`), and call it from the app. Never bypass the
-interface.
+**Add intelligence:** extend the `PersonIntelligence` interface
+(`src/intelligence/types.ts`), implement it in the mock brain
+(`src/intelligence/mock.ts`), and call it via `intelligenceFor(personId)`. Never
+bypass the interface.
+
+**Add an action/intent:** add an event to `SimEvent` (`src/state/events.ts`) +
+handle it in the reducer if it changes derived state; add a `propose<Intent>`
+builder and a `case` in `propose()` (`src/actions/index.ts`); render its
+`Proposal` (reuse `ProposalSheet`) and call `commit` on confirm. This one path
+powers both the assistant and scenarios.
+
+**Read/track runtime data:** read via selectors (`src/state/selectors.ts`) and a
+`useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
+log is persisted automatically, so anything you record survives reloads.
 
 ## Content conventions
 
 - **Ids** are kebab-case and stable (they are referenced across files, e.g. a
   photo's `people:` list references person/contact ids).
-- **Dates** are ISO (`YYYY-MM-DD`) and interpreted against `SIM_NOW`.
+- **Dates** are ISO (`YYYY-MM-DD`) and interpreted against the sim clock (starts
+  at `SIM_START`).
 - **Frontmatter** is fenced with `---` and must satisfy the matching schema in
   `src/world/schema.ts`. If you add a field, add it to the schema too.
 - A photo's image and metadata share a basename (`img-001.svg` ↔
@@ -167,9 +200,11 @@ interface.
 
 ## Verification (before committing non-trivial changes)
 
-1. `npm run build` passes (typecheck + build).
+1. `npm run test` and `npm run build` both pass (unit tests + typecheck + build).
 2. Drive the real flow (browser or headless Playwright): **lock → unlock → home
-   → open the app → interact**. Confirm no console errors.
+   → open the app → interact** (e.g. Photos → open a photo → Share → Send).
+   Confirm no console errors, and that persisted effects survive a reload and
+   clear on **Reset world**.
 3. For content changes, confirm the new/edited content renders and that removing
    the code did not require engine edits (content ≠ code).
 
@@ -186,20 +221,36 @@ subpath and on a real phone.
 
 ## Milestones
 
-### M1 — Phone shell + Photos ✅ (current)
+### M1 — Phone shell + Photos ✅
 
 Interactive phone (lock → home → app), one seed person (Ava), and the **Photos**
 app: a time-grouped gallery whose grouping and "people in photo" come from the
 mock intelligence + metadata. Themeable, content-driven, deployable.
 
-### M2 — Assistant approve/send surface (next)
+### M1.5 — Foundation ✅ (current)
 
-A visible assistant overlay where the intelligence **proposes an action** and the
-user confirms with one tap. Example: "Share these 5 photos with Sam & Ava" →
-tap **Send**. Introduce `share-photos` on the adapter (already named in
-`world/apps/photos.md` actions), a proposal/preview UI, and a lightweight
-"sent"/activity record. Still deterministic; the adapter drafts the message and
-picks recipients from photo metadata.
+The architectural spine that makes the later milestones cheap:
+- **Runtime state** = event log + reducer + selectors (`src/state`), persisted to
+  localStorage; authored `world/` stays read-only seed.
+- **Action/intent pipeline** (`src/actions`): `propose → Proposal → commit`, with
+  a minimal `ProposalSheet` approve/send surface. Photos' **Share** is wired
+  through it end-to-end (drafts recipients from metadata, sends, persists,
+  shows a "shared with" indicator).
+- **Context assembly** (`src/context`): `assembleContext → ContextBundle`, the
+  bundle an LLM decider will consume in M5.
+- **Session/POV** (`src/session`): the embodied hero person + device switcher.
+- **Person-scoped brains**: `intelligenceFor(personId)` (shared across a person's
+  devices), replacing the global singleton.
+- **Clock** routed through the store (`useNow`); load-time **integrity check**;
+  **vitest** harness; **dev bar** (sim time / device switch / reset).
+
+### M2 — Assistant surface (next)
+
+Promote the minimal `ProposalSheet` into a first-class assistant: a persistent
+entry point (not just per-photo), multi-photo/multi-select share, an inbox/
+activity view of sent items, and richer proposals (e.g. "share **this week's**
+photos with the people in them" in one shot). Still deterministic; builds
+entirely on the M1.5 pipeline — mostly new intents + UI, little new plumbing.
 
 ### M3 — Multiple people + contacts graph
 
@@ -232,5 +283,13 @@ image generation for scenario output.
   `src/theme/`, not scattered in components.
 - When adding LLM calls (M5), preserve determinism as an option: the mock must
   remain a working, token-free provider so the world is always runnable offline.
+- **Deferred foundation seams** (noted so we build toward them, not around them):
+  generalize `Photo` → a shared `Asset` shape (documents/avatars/wallpapers/
+  generated images) before M6 image generation; expand the theme schema toward a
+  full design-token set (typography/spacing/wallpaper) when the style-guide work
+  lands. Neither is built yet — don't over-invest early, but don't block them.
+- The event log is the substrate for scenarios (M4): a scenario is essentially a
+  scripted sequence of `propose/commit` calls with `ClockSet` events between
+  them. Keep new effects expressible as events so scenarios can replay them.
 - Prefer extending schemas and registries over adding conditionals; the codebase
   should stay "add a file, it shows up."

@@ -4,19 +4,20 @@
  */
 
 /**
- * The simulation's "current time". Photos and time-grouping are measured
- * against this, NOT the real wall clock, so the world behaves identically no
- * matter when it is run. Later this can move into world content.
+ * The simulation's initial clock. Runtime "now" lives in the state store
+ * (src/state) and starts here; scenarios/events can advance it. Everything
+ * time-related reads the store's clock (useNow / selectNow), NOT the wall clock,
+ * so the world behaves identically whenever it runs.
  */
-export const SIM_NOW = new Date('2026-07-16T12:00:00');
+export const SIM_START = new Date('2026-07-16T12:00:00');
 
-/** Which person's device boots when the app loads (the "prototype" device). */
-export const BOOT_PERSON_ID = 'ava-chen';
-export const BOOT_DEVICE_ID = 'ava-phone';
+/** The "hero": whose device the viewer embodies when the app boots. */
+export const HERO_PERSON_ID = 'ava-chen';
+export const HERO_DEVICE_ID = 'ava-phone';
 
 /**
  * Which intelligence provider backs derived/"smart" results. 'mock' is fully
- * deterministic and spends no tokens; an 'llm' provider can drop in later
- * behind the same interface without touching the UI.
+ * deterministic and spends no tokens; an 'llm' provider can drop in later behind
+ * the same interface without touching the UI.
  */
 export const INTELLIGENCE_PROVIDER: 'mock' = 'mock';

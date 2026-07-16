@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { getApp, getDevice, getPerson, getTheme } from '../world';
 import { themeToCssVars } from '../theme';
+import { useSession } from '../session';
+import { useStore } from '../state';
 import { appRegistry } from '../apps/registry';
 import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
@@ -11,23 +13,30 @@ type Screen =
   | { kind: 'home' }
   | { kind: 'app'; appId: string };
 
-interface PhoneProps {
-  personId: string;
-  deviceId: string;
-}
-
-/** Orchestrates the device: theme + lock/home/app state machine. */
-export function Phone({ personId, deviceId }: PhoneProps) {
-  const owner = useMemo(() => getPerson(personId), [personId]);
+/** Orchestrates the embodied device: theme + lock/home/app state machine. */
+export function Phone() {
+  const { session } = useSession();
+  const { state, dispatch } = useStore();
+  const owner = useMemo(() => getPerson(session.personId), [session.personId]);
   const device = useMemo(
-    () => getDevice(personId, deviceId),
-    [personId, deviceId],
+    () => getDevice(session.personId, session.deviceId),
+    [session.personId, session.deviceId],
   );
   const themeVars = useMemo(
     () => themeToCssVars(getTheme(device.theme)),
     [device.theme],
   );
   const [screen, setScreen] = useState<Screen>({ kind: 'locked' });
+
+  function openApp(appId: string) {
+    dispatch({
+      type: 'AppOpened',
+      at: state.clock,
+      person: session.personId,
+      appId,
+    });
+    setScreen({ kind: 'app', appId });
+  }
 
   return (
     <DeviceFrame themeVars={themeVars}>
@@ -39,7 +48,7 @@ export function Phone({ personId, deviceId }: PhoneProps) {
         <HomeScreen
           owner={owner}
           device={device}
-          onOpenApp={(appId) => setScreen({ kind: 'app', appId })}
+          onOpenApp={openApp}
           onLock={() => setScreen({ kind: 'locked' })}
         />
       )}
