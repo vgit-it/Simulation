@@ -1,4 +1,4 @@
-import { SIM_NOW } from '../config';
+import { useNow } from '../state';
 import type { LoadedPerson } from '../world';
 
 function bigTime(d: Date): string {
@@ -21,6 +21,7 @@ interface LockScreenProps {
 }
 
 export function LockScreen({ owner, onUnlock }: LockScreenProps) {
+  const now = useNow();
   return (
     <button
       onClick={onUnlock}
@@ -28,9 +29,9 @@ export function LockScreen({ owner, onUnlock }: LockScreenProps) {
       aria-label="Unlock phone"
     >
       <div className="mt-10 flex flex-col items-center">
-        <p className="text-sm text-muted">{longDate(SIM_NOW)}</p>
+        <p className="text-sm text-muted">{longDate(now)}</p>
         <p className="mt-1 text-7xl font-semibold tracking-tight tabular-nums">
-          {bigTime(SIM_NOW)}
+          {bigTime(now)}
         </p>
       </div>
 

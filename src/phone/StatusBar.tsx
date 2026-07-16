@@ -1,4 +1,4 @@
-import { SIM_NOW } from '../config';
+import { useNow } from '../state';
 
 function formatTime(d: Date): string {
   const h = d.getHours();
@@ -8,10 +8,11 @@ function formatTime(d: Date): string {
 
 /** Deterministic status bar — time comes from the simulation clock. */
 export function StatusBar() {
+  const now = useNow();
   return (
     <div className="flex items-center justify-between px-7 pt-3 pb-1 text-text">
       <span className="text-sm font-semibold tabular-nums">
-        {formatTime(SIM_NOW)}
+        {formatTime(now)}
       </span>
       <div className="flex items-center gap-1.5 text-[11px] font-medium">
         <span>5G</span>

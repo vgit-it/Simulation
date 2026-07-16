@@ -1,5 +1,11 @@
-import { intelligence } from '../../intelligence';
-import type { LoadedPerson, Photo } from '../../world';
+import { useState } from 'react';
+import { propose, type Proposal } from '../../actions';
+import { ProposalSheet } from '../../actions/ProposalSheet';
+import { assembleContext } from '../../context';
+import { intelligenceFor } from '../../intelligence';
+import { useSession } from '../../session';
+import { messagesWithAttachment, useStore } from '../../state';
+import { resolvePerson, type Photo } from '../../world';
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString('en-US', {
@@ -11,18 +17,35 @@ function formatDate(d: Date): string {
 }
 
 interface PhotoDetailProps {
-  owner: LoadedPerson;
   photo: Photo;
   onBack: () => void;
 }
 
-export function PhotoDetail({ owner, photo, onBack }: PhotoDetailProps) {
-  // "Who is in this photo" comes from metadata via the intelligence provider —
-  // no image analysis.
-  const people = intelligence.peopleInPhoto(owner.id, photo);
+export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
+  const { session } = useSession();
+  const { state } = useStore();
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+
+  // "Who is in this photo" comes from metadata via the person's brain — no
+  // image analysis.
+  const people = intelligenceFor(session.personId).peopleInPhoto(photo);
+
+  // Persisted history: has this photo already been shared? (survives reloads)
+  const shares = messagesWithAttachment(state, photo.id);
+  const sharedWith = [
+    ...new Set(shares.flatMap((m) => m.to)),
+  ].map((id) => resolvePerson(session.personId, id));
+
+  function onShare() {
+    const ctx = assembleContext(session, state, {
+      app: 'photos',
+      photoIds: [photo.id],
+    });
+    setProposal(propose('share-photos', ctx, [photo]));
+  }
 
   return (
-    <div className="flex h-full flex-col bg-bg">
+    <div className="relative flex h-full flex-col bg-bg">
       <header className="flex items-center justify-between px-4 py-2">
         <button
           onClick={onBack}
@@ -42,7 +65,21 @@ export function PhotoDetail({ owner, photo, onBack }: PhotoDetailProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        <h2 className="text-lg font-semibold">{photo.location}</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">{photo.location}</h2>
+          <button
+            onClick={onShare}
+            className="rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white active:opacity-80"
+          >
+            Share
+          </button>
+        </div>
+
+        {sharedWith.length > 0 && (
+          <p className="mt-2 text-xs text-muted">
+            ✓ Shared with {sharedWith.map((p) => p.name).join(', ')}
+          </p>
+        )}
 
         <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">
           People
@@ -77,6 +114,14 @@ export function PhotoDetail({ owner, photo, onBack }: PhotoDetailProps) {
           </>
         )}
       </div>
+
+      {proposal && (
+        <ProposalSheet
+          proposal={proposal}
+          onSent={() => setProposal(null)}
+          onCancel={() => setProposal(null)}
+        />
+      )}
     </div>
   );
 }

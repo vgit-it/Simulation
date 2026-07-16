@@ -1,28 +1,24 @@
 import { useMemo, useState } from 'react';
-import { intelligence } from '../../intelligence';
+import { intelligenceFor } from '../../intelligence';
+import { useNow } from '../../state';
 import type { Photo } from '../../world';
 import type { AppScreenProps } from '../types';
 import { PhotoDetail } from './PhotoDetail';
 
 /**
  * Photos: a time-grouped gallery. Grouping is a "smart" result delegated to the
- * intelligence provider; the underlying data is the owner's committed gallery.
+ * person's brain; the underlying data is the owner's committed gallery.
  */
 export function PhotosApp({ owner, onClose }: AppScreenProps) {
+  const now = useNow();
   const groups = useMemo(
-    () => intelligence.groupPhotosByTime(owner.gallery),
-    [owner.gallery],
+    () => intelligenceFor(owner.id).groupPhotosByTime(owner.gallery, now),
+    [owner.id, owner.gallery, now],
   );
   const [selected, setSelected] = useState<Photo | null>(null);
 
   if (selected) {
-    return (
-      <PhotoDetail
-        owner={owner}
-        photo={selected}
-        onBack={() => setSelected(null)}
-      />
-    );
+    return <PhotoDetail photo={selected} onBack={() => setSelected(null)} />;
   }
 
   return (

@@ -1,17 +1,23 @@
 import { resolvePerson, type Photo } from '../world';
-import type { IntelligenceProvider, PhotoGroup, ResolvedPerson } from './types';
+import type {
+  IntelligenceProvider,
+  PersonIntelligence,
+  PhotoGroup,
+  ResolvedPerson,
+  ShareDraft,
+} from './types';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Deterministic, token-free intelligence. All answers are computed from the
- * committed metadata against the simulation clock — no perception, no network.
+ * Deterministic, token-free brain for one person. All answers are computed from
+ * committed metadata + the passed-in clock — no perception, no network.
  */
-export class MockIntelligence implements IntelligenceProvider {
-  constructor(private readonly now: Date) {}
+class MockPersonIntelligence implements PersonIntelligence {
+  constructor(readonly personId: string) {}
 
-  groupPhotosByTime(photos: Photo[]): PhotoGroup[] {
-    const threshold = this.now.getTime() - WEEK_MS;
+  groupPhotosByTime(photos: Photo[], now: Date): PhotoGroup[] {
+    const threshold = now.getTime() - WEEK_MS;
     const thisWeek: Photo[] = [];
     const earlier: Photo[] = [];
     for (const photo of photos) {
@@ -28,7 +34,44 @@ export class MockIntelligence implements IntelligenceProvider {
     return groups;
   }
 
-  peopleInPhoto(ownerId: string, photo: Photo): ResolvedPerson[] {
-    return photo.people.map((id) => resolvePerson(ownerId, id));
+  peopleInPhoto(photo: Photo): ResolvedPerson[] {
+    return photo.people.map((id) => resolvePerson(this.personId, id));
+  }
+
+  draftShare(photos: Photo[]): ShareDraft {
+    // Recipients = everyone who appears in the photos, minus the owner.
+    const ids = new Set<string>();
+    for (const photo of photos) {
+      for (const id of photo.people) {
+        if (id !== this.personId) ids.add(id);
+      }
+    }
+    const recipients = [...ids].map((id) => resolvePerson(this.personId, id));
+
+    const places = [...new Set(photos.map((p) => p.location).filter(Boolean))];
+    const placePhrase =
+      places.length === 0
+        ? ''
+        : places.length === 1
+          ? ` from ${places[0]}`
+          : ` from ${places.slice(0, -1).join(', ')} and ${places.at(-1)}`;
+    const count = photos.length;
+    const noun = count === 1 ? 'this photo' : `these ${count} photos`;
+    const message = `Hey! Sharing ${noun}${placePhrase} — thought you'd want them. 📷`;
+
+    return { recipients, message };
+  }
+}
+
+export class MockIntelligence implements IntelligenceProvider {
+  private brains = new Map<string, PersonIntelligence>();
+
+  for(personId: string): PersonIntelligence {
+    let brain = this.brains.get(personId);
+    if (!brain) {
+      brain = new MockPersonIntelligence(personId);
+      this.brains.set(personId, brain);
+    }
+    return brain;
   }
 }

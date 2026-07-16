@@ -169,4 +169,53 @@ function buildWorld(): World {
   return { apps, themes, people };
 }
 
-export const world: World = buildWorld();
+/**
+ * Cross-reference integrity: individual files are already schema-valid, but ids
+ * reference each other across files. Catch dangling references at load with a
+ * clear message rather than letting them silently mis-render later.
+ */
+export function validateIntegrity(w: World): void {
+  const errors: string[] = [];
+  for (const person of Object.values(w.people)) {
+    const known = new Set([
+      person.id,
+      ...person.contacts.map((c) => c.id),
+      ...Object.keys(w.people),
+    ]);
+    for (const device of person.devices) {
+      if (!w.themes[device.theme]) {
+        errors.push(
+          `${person.id}: device "${device.id}" references unknown theme "${device.theme}"`,
+        );
+      }
+      for (const appId of device.apps) {
+        if (!w.apps[appId]) {
+          errors.push(
+            `${person.id}: device "${device.id}" references unknown app "${appId}"`,
+          );
+        }
+      }
+    }
+    for (const photo of person.gallery) {
+      for (const id of photo.people) {
+        if (!known.has(id)) {
+          errors.push(
+            `${person.id}: photo "${photo.id}" references unknown person/contact "${id}"`,
+          );
+        }
+      }
+    }
+  }
+  if (errors.length) {
+    throw new Error(`World integrity errors:\n  - ${errors.join('\n  - ')}`);
+  }
+}
+
+function loadWorld(): World {
+  const w = buildWorld();
+  validateIntegrity(w);
+  return w;
+}
+
+/** The authored seed (read-only). Runtime/mutable state lives in src/state. */
+export const world: World = loadWorld();
