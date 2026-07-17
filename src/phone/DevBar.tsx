@@ -36,7 +36,7 @@ export function DevBar({ onScreenChange }: DevBarProps) {
   }
 
   return (
-    <div className="mt-4 flex flex-col items-center gap-2 text-xs text-white/60">
+    <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl bg-white/5 px-4 py-3 text-xs text-white/60 backdrop-blur">
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <span className="mr-1 text-white/40">POV</span>
         {people.map((p) => (
@@ -44,7 +44,7 @@ export function DevBar({ onScreenChange }: DevBarProps) {
             key={p.id}
             onClick={() => switchPerson(p.id)}
             title={p.name}
-            className={`rounded-full px-2.5 py-1 ${
+            className={`rounded-full px-2.5 py-1 transition-colors duration-150 ${
               p.id === session.personId
                 ? 'bg-white/20 text-white'
                 : 'bg-white/5 hover:bg-white/10'
@@ -63,7 +63,7 @@ export function DevBar({ onScreenChange }: DevBarProps) {
             <button
               key={d.id}
               onClick={() => setDevice(d.id)}
-              className={`rounded-full px-3 py-1 ${
+              className={`rounded-full px-3 py-1 transition-colors duration-150 ${
                 d.id === session.deviceId
                   ? 'bg-white/20 text-white'
                   : 'bg-white/5 hover:bg-white/10'
@@ -75,7 +75,7 @@ export function DevBar({ onScreenChange }: DevBarProps) {
 
         <button
           onClick={reset}
-          className="rounded-full bg-white/5 px-3 py-1 hover:bg-white/10"
+          className="rounded-full bg-white/5 px-3 py-1 transition-colors duration-150 hover:bg-white/10"
           title="Clear all runtime state (sent messages, tracked facts)"
         >
           ↺ Reset world

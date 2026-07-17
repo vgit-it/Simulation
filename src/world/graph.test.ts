@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { contactsOf, resolveAsset, sharedPhotoCount, world } from './index';
+import {
+  contactsOf,
+  resolveAsset,
+  sharedPhotoCount,
+  sharedPhotos,
+  world,
+} from './index';
 
 describe('contacts graph', () => {
   it("derives Ava's contacts from who she co-appears with", () => {
@@ -21,6 +27,12 @@ describe('contacts graph', () => {
     // Theo and Sam share a Baker Beach photo in each of their galleries.
     expect(contactsOf('theo-benoit').map((c) => c.id)).toContain('sam-ruiz');
     expect(contactsOf('sam-ruiz').map((c) => c.id)).toContain('theo-benoit');
+  });
+
+  it('lists the shared photos themselves, consistently with the count', () => {
+    const photos = sharedPhotos('ava-chen', 'sam-ruiz');
+    expect(photos.length).toBe(sharedPhotoCount('ava-chen', 'sam-ruiz'));
+    expect(photos.every((p) => p.people.includes('sam-ruiz'))).toBe(true);
   });
 
   it('counts shared photos and resolves assets within a sender gallery', () => {

@@ -5,6 +5,7 @@ import { assembleContext } from '../../context';
 import { intelligenceFor } from '../../intelligence';
 import { useSession } from '../../session';
 import { messagesWithAttachment, useStore } from '../../state';
+import { AppHeader, PillButton } from '../../ui';
 import { resolvePerson, type Photo } from '../../world';
 
 function formatDate(d: Date): string {
@@ -45,46 +46,49 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
   }
 
   return (
-    <div className="relative flex h-full flex-col bg-bg">
-      <header className="flex items-center justify-between px-4 py-2">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-sm text-accent"
-        >
-          <span aria-hidden>‹</span> Photos
-        </button>
-        <span className="text-xs text-muted">{formatDate(photo.date)}</span>
-      </header>
+    <div className="relative flex h-full animate-push flex-col bg-bg">
+      <AppHeader
+        title=""
+        onBack={onBack}
+        backLabel="Photos"
+        actions={<span className="text-xs text-muted">{formatDate(photo.date)}</span>}
+      />
 
       <div className="px-4">
         <img
           src={photo.url}
           alt={photo.location}
-          className="w-full rounded-card object-cover"
+          className="w-full animate-scale-in rounded-card object-cover"
         />
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="flex items-center justify-between">
+        <div
+          className="flex animate-rise items-center justify-between"
+          style={{ animationDelay: '80ms' }}
+        >
           <h2 className="text-lg font-semibold">{photo.location}</h2>
-          <button
-            onClick={onShare}
-            className="rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white active:opacity-80"
-          >
+          <PillButton variant="accent" onClick={onShare}>
             Share
-          </button>
+          </PillButton>
         </div>
 
         {sharedWith.length > 0 && (
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 animate-rise text-xs text-muted">
             ✓ Shared with {sharedWith.map((p) => p.name).join(', ')}
           </p>
         )}
 
-        <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">
+        <h3
+          className="mb-2 mt-5 animate-rise text-xs font-semibold uppercase tracking-wide text-muted"
+          style={{ animationDelay: '120ms' }}
+        >
           People
         </h3>
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="flex animate-rise flex-wrap gap-2"
+          style={{ animationDelay: '120ms' }}
+        >
           {people.map((person) => (
             <span
               key={person.id}
@@ -97,7 +101,7 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
         </div>
 
         {photo.tags.length > 0 && (
-          <>
+          <div className="animate-rise" style={{ animationDelay: '160ms' }}>
             <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">
               Tags
             </h3>
@@ -111,17 +115,15 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
                 </span>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {proposal && (
-        <ProposalSheet
-          proposal={proposal}
-          onSent={() => setProposal(null)}
-          onCancel={() => setProposal(null)}
-        />
-      )}
+      <ProposalSheet
+        proposal={proposal}
+        onSent={() => setProposal(null)}
+        onCancel={() => setProposal(null)}
+      />
     </div>
   );
 }

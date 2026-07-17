@@ -25,23 +25,28 @@ export function LockScreen({ owner, onUnlock }: LockScreenProps) {
   return (
     <button
       onClick={onUnlock}
-      className="flex h-full w-full flex-col items-center justify-between bg-gradient-to-b from-bg to-surface px-6 py-16 text-center outline-none"
+      className="flex h-full w-full flex-col items-center justify-between bg-gradient-to-b from-bg to-surface px-6 py-16 text-center outline-none transition-transform duration-150 active:scale-[0.99]"
       aria-label="Unlock phone"
     >
       <div className="mt-10 flex flex-col items-center">
-        <p className="text-sm text-muted">{longDate(now)}</p>
-        <p className="mt-1 text-7xl font-semibold tracking-tight tabular-nums">
+        <p className="animate-fade-in text-sm text-muted" style={{ animationDelay: '100ms' }}>
+          {longDate(now)}
+        </p>
+        <p className="animate-rise mt-1 text-7xl font-semibold tracking-tight tabular-nums">
           {bigTime(now)}
         </p>
       </div>
 
-      <div className="flex flex-col items-center gap-2">
+      <div
+        className="flex animate-rise flex-col items-center gap-2"
+        style={{ animationDelay: '150ms' }}
+      >
         <span className="text-4xl">{owner.avatar}</span>
         <span className="text-sm text-muted">{owner.name}</span>
       </div>
 
       <div className="mb-2 flex flex-col items-center gap-3">
-        <span className="text-xs uppercase tracking-widest text-muted">
+        <span className="text-xs uppercase tracking-widest text-muted motion-safe:animate-breathe">
           Tap to unlock
         </span>
         <span className="h-1 w-28 rounded-full bg-text/40" />

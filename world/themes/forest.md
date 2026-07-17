@@ -10,6 +10,6 @@ colors:
 radii:
   screen: 44
   card: 16
-font: 'Inter, system-ui, sans-serif'
+font: "'Inter Variable', 'Inter', system-ui, sans-serif"
 ---
 A deep green, dark theme. Edit these tokens to restyle any device that uses the "forest" theme.

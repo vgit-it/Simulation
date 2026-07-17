@@ -21,6 +21,56 @@ export default {
       fontFamily: {
         sim: 'var(--sim-font)',
       },
+      // Motion is OS behavior, deliberately engine-level and uniform across
+      // themes; per-person identity stays in world/themes tokens.
+      transitionTimingFunction: {
+        'out-soft': 'cubic-bezier(0.25, 1, 0.5, 1)',
+        sheet: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+      },
+      boxShadow: {
+        sheet: '0 -8px 32px rgba(0, 0, 0, 0.25)',
+        fab: '0 8px 24px -6px rgba(0, 0, 0, 0.35)',
+      },
+      // Entrances declare only a `from` frame: they animate to the element's
+      // natural style, so no transform lingers afterwards (a persisted
+      // transform would create a permanent stacking context and break overlay
+      // layering). Exits declare only a `to` frame; fill-mode holds it until
+      // useMountTransition unmounts the element.
+      keyframes: {
+        'fade-in': { from: { opacity: '0' } },
+        'fade-out': { to: { opacity: '0' } },
+        rise: { from: { opacity: '0', transform: 'translateY(12px)' } },
+        'scale-in': { from: { opacity: '0', transform: 'scale(0.92)' } },
+        'app-out': { to: { opacity: '0', transform: 'scale(0.92)' } },
+        'slide-up': { from: { transform: 'translateY(100%)' } },
+        'slide-down': { to: { transform: 'translateY(100%)' } },
+        'lock-away': { to: { opacity: '0', transform: 'translateY(-8%)' } },
+        pop: {
+          '0%': { opacity: '0', transform: 'scale(0.4)' },
+          '70%': { opacity: '1', transform: 'scale(1.08)' },
+        },
+        breathe: {
+          '0%, 100%': { opacity: '0.45' },
+          '50%': { opacity: '1' },
+        },
+        push: { from: { opacity: '0', transform: 'translateX(16px)' } },
+      },
+      // 'both' fill-mode everywhere so staggered entrances (inline
+      // animationDelay) hold their from-state until the delay elapses.
+      animation: {
+        'fade-in': 'fade-in 250ms cubic-bezier(0.25, 1, 0.5, 1) both',
+        'fade-out': 'fade-out 200ms ease-out both',
+        rise: 'rise 350ms cubic-bezier(0.25, 1, 0.5, 1) both',
+        'scale-in': 'scale-in 300ms cubic-bezier(0.25, 1, 0.5, 1) both',
+        'app-out': 'app-out 250ms cubic-bezier(0.4, 0, 1, 1) both',
+        'slide-up': 'slide-up 400ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        'slide-down': 'slide-down 300ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        'lock-away': 'lock-away 350ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        pop: 'pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
+        breathe: 'breathe 2.6s ease-in-out infinite',
+        push: 'push 250ms cubic-bezier(0.25, 1, 0.5, 1) both',
+      },
     },
   },
   plugins: [],

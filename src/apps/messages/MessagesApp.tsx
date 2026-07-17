@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { inboxThreads, useStore } from '../../state';
-import { resolvePerson } from '../../world';
+import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
+import { resolveAsset, resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
 import { Thread } from './Thread';
 
@@ -43,38 +44,39 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <header className="flex items-center justify-between px-5 pb-3 pt-2">
-        <h1 className="text-2xl font-bold">Messages</h1>
-        <button
-          onClick={onClose}
-          className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-        >
-          Home
-        </button>
-      </header>
+      <AppHeader
+        title="Messages"
+        actions={<PillButton onClick={onClose}>Home</PillButton>}
+      />
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
         {threads.length === 0 ? (
-          <p className="px-3 py-10 text-center text-sm text-muted">
-            No messages yet.
-          </p>
+          <EmptyState
+            icon="💬"
+            title="No messages yet"
+            hint="Shares sent to this person land here."
+          />
         ) : (
           <div className="flex flex-col">
-            {threads.map((t) => {
+            {threads.map((t, i) => {
               const people = t.participantIds.map((id) =>
                 resolvePerson(owner.id, id),
               );
               const names = people.map((p) => p.name).join(', ');
               const outgoing = t.last.from === owner.id;
+              const previewAssets = t.last.attachments
+                .slice(0, 3)
+                .map((assetId) => resolveAsset(t.last.from, assetId))
+                .filter((p): p is NonNullable<typeof p> => Boolean(p));
+              const overflow = t.last.attachments.length - previewAssets.length;
               return (
                 <button
                   key={t.key}
                   onClick={() => setOpenKey(t.key)}
-                  className="flex items-center gap-3 rounded-card px-3 py-3 text-left active:bg-text/5"
+                  className="flex animate-rise items-center gap-3 rounded-card px-3 py-3 text-left transition-colors duration-150 active:bg-text/5"
+                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-text/10 text-xl">
-                    {people[0]?.avatar ?? '💬'}
-                  </span>
+                  <Avatar emoji={people[0]?.avatar ?? '💬'} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-sm font-semibold">
@@ -84,11 +86,28 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
                         {timeLabel(t.last.at)}
                       </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">
-                      {outgoing ? 'You: ' : ''}
-                      {t.last.body}
-                      {t.last.attachments.length > 0 &&
-                        ` 📎 ${t.last.attachments.length}`}
+                    <span className="mt-0.5 flex items-center gap-1.5">
+                      <span className="min-w-0 truncate text-xs text-muted">
+                        {outgoing ? 'You: ' : ''}
+                        {t.last.body}
+                      </span>
+                      {previewAssets.length > 0 && (
+                        <span className="flex shrink-0 items-center gap-0.5">
+                          {previewAssets.map((p) => (
+                            <img
+                              key={p.id}
+                              src={p.url}
+                              alt=""
+                              className="h-4 w-4 rounded-[4px] object-cover"
+                            />
+                          ))}
+                          {overflow > 0 && (
+                            <span className="text-[10px] text-muted">
+                              +{overflow}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </span>
                   </span>
                 </button>

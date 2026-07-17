@@ -10,6 +10,6 @@ colors:
 radii:
   screen: 44
   card: 16
-font: 'Inter, system-ui, sans-serif'
+font: "'Inter Variable', 'Inter', system-ui, sans-serif"
 ---
 A soft pink, light theme. Edit these tokens to restyle any device that uses the "blossom" theme.

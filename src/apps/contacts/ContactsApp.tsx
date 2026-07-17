@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { contactsOf, sharedPhotoCount } from '../../world';
+import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
+import { contactsOf, sharedPhotos } from '../../world';
 import type { AppScreenProps } from '../types';
 
 /**
@@ -12,40 +13,47 @@ export function ContactsApp({ owner, onClose }: AppScreenProps) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <header className="flex items-center justify-between px-5 pb-3 pt-2">
-        <h1 className="text-2xl font-bold">Contacts</h1>
-        <button
-          onClick={onClose}
-          className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-        >
-          Home
-        </button>
-      </header>
+      <AppHeader
+        title="Contacts"
+        actions={<PillButton onClick={onClose}>Home</PillButton>}
+      />
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
         {contacts.length === 0 ? (
-          <p className="px-3 py-10 text-center text-sm text-muted">
-            No contacts yet.
-          </p>
+          <EmptyState
+            icon="👥"
+            title="No contacts yet"
+            hint="People who share photos with this person appear here."
+          />
         ) : (
           <div className="flex flex-col">
-            {contacts.map((c) => {
-              const count = sharedPhotoCount(owner.id, c.id);
+            {contacts.map((c, i) => {
+              const photos = sharedPhotos(owner.id, c.id);
               return (
                 <div
                   key={c.id}
-                  className="flex items-center gap-3 rounded-card px-3 py-3"
+                  className="flex animate-rise items-center gap-3 rounded-card px-3 py-3 transition-colors duration-150 active:bg-text/5"
+                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-text/10 text-xl">
-                    {c.avatar}
-                  </span>
+                  <Avatar emoji={c.avatar} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">
                       {c.name}
                     </span>
                     <span className="mt-0.5 block text-xs text-muted">
-                      In {count} photo{count === 1 ? '' : 's'} together
+                      In {photos.length} photo{photos.length === 1 ? '' : 's'}{' '}
+                      together
                     </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {photos.slice(0, 3).map((p) => (
+                      <img
+                        key={p.id}
+                        src={p.url}
+                        alt=""
+                        className="h-8 w-8 rounded-md object-cover ring-1 ring-text/10"
+                      />
+                    ))}
                   </span>
                 </div>
               );

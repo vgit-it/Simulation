@@ -76,6 +76,13 @@ contacts, photos, etc.).
 
 - **React 18 + TypeScript + Vite** (static build for GitHub Pages).
 - **Tailwind CSS** with theme tokens exposed as CSS variables.
+- **Motion**: Tailwind keyframes/transitions + a tiny `useMountTransition`
+  presence hook (`src/ui`) — no animation library. Motion is *engine-level*
+  (uniform OS behavior in `tailwind.config.ts`); per-person identity stays in
+  theme tokens. All animation is presentation-only (timeouts never feed sim
+  state) and collapses under `prefers-reduced-motion`.
+- **Inter** is self-hosted via `@fontsource-variable/inter` (bundled at build
+  time — no runtime network, works offline).
 - **zod** for content schemas, **js-yaml** for frontmatter + sidecars.
   - Note: we parse frontmatter with `js-yaml` directly (see
     `src/world/frontmatter.ts`) rather than `gray-matter`, which depends on
@@ -133,6 +140,8 @@ src/
   scenarios/                   # scenario playback: pure step runner + ScenarioBar UI
     runner.ts                  # resolveStep(step, state) -> events/focus/screen (pure)
     ScenarioBar.tsx             # out-of-phone player: pick/step/play a scenario
+  ui/                          # shared primitives (Sheet, AppHeader, PillButton,
+                               #   Avatar, EmptyState) + motion (useMountTransition)
   theme/                       # theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
     Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
@@ -184,7 +193,9 @@ that aren't real people, but the seed doesn't rely on it.)
 1. Author `world/apps/<app>.md` (frontmatter: `id`, `name`, `icon`, `category`,
    `capabilities`, `actions`).
 2. Create a renderer under `src/apps/<app>/` implementing `AppScreenProps`
-   (`src/apps/types.ts`).
+   (`src/apps/types.ts`). Build its surfaces from the `src/ui` primitives
+   (`AppHeader`, `PillButton`, `Avatar`, `EmptyState`, `Sheet`) so motion and
+   polish stay consistent across apps.
 3. Register it in `src/apps/registry.ts` (one line).
 4. Add the app id to a device's `apps:` list so it appears on the home screen.
 
@@ -310,7 +321,9 @@ content-driven apps close the loop from M2:
 All on the M1.5 substrate — new content + two app renderers + a few pure
 selectors (`messagesInvolving`, `inboxThreads`, `contactsOf`), no new plumbing.
 Deferred: replying from the inbox, message-based (runtime) contacts, global
-asset ids (Photo→Asset), scenarios (M4).
+asset ids (Photo→Asset), unread badges (needs a `ThreadRead` event + reducer
+semantics), a global toast surface (the `DeviceFrame` overlay slot is the
+seam), per-theme motion tokens. (Scenarios landed as M4.)
 
 ### M4 — Scenarios ✅ (current)
 
