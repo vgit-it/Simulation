@@ -1,8 +1,16 @@
 import { world, validateIntegrity, type LoadedPerson, type World } from './loader';
-import type { AppDefinition, Device, Photo, Theme } from './schema';
+import type { AppDefinition, Device, Photo, Scenario, Theme } from './schema';
 
 export type { World, LoadedPerson };
-export type { AppDefinition, Contact, Device, Theme, Photo } from './schema';
+export type {
+  AppDefinition,
+  Contact,
+  Device,
+  Scenario,
+  ScenarioStep,
+  Theme,
+  Photo,
+} from './schema';
 export { world, validateIntegrity };
 
 /** A person/contact resolved to the minimal fields the UI needs to render them. */
@@ -92,4 +100,15 @@ export function resolveAsset(
   assetId: string,
 ): Photo | undefined {
   return getPerson(ownerId).gallery.find((p) => p.id === assetId);
+}
+
+export function getScenario(scenarioId: string): Scenario {
+  const scenario = world.scenarios[scenarioId];
+  if (!scenario) throw new Error(`Unknown scenario: ${scenarioId}`);
+  return scenario;
+}
+
+/** Every authored scenario, in authoring order. */
+export function listScenarios(): Scenario[] {
+  return Object.values(world.scenarios);
 }

@@ -1,6 +1,7 @@
 import { useHeroDevices, useSession } from '../session';
 import { useNow, useStore } from '../state';
 import { world } from '../world';
+import type { Screen } from './Phone';
 
 function timeLabel(d: Date): string {
   return d.toLocaleString('en-US', {
@@ -11,17 +12,28 @@ function timeLabel(d: Date): string {
   });
 }
 
+interface DevBarProps {
+  onScreenChange: (screen: Screen) => void;
+}
+
 /**
  * Out-of-phone developer controls: shows the sim clock, switches which person
  * (POV) and which of their devices is embodied, and resets runtime state
  * (clears the persisted event log).
  */
-export function DevBar() {
+export function DevBar({ onScreenChange }: DevBarProps) {
   const { session, setDevice, setPerson } = useSession();
   const devices = useHeroDevices();
   const now = useNow();
   const { reset } = useStore();
   const people = Object.values(world.people);
+
+  // Embodying a different person is "picking up their phone": start from the
+  // lock screen so the POV switch reads clearly.
+  function switchPerson(personId: string) {
+    setPerson(personId);
+    onScreenChange({ kind: 'locked' });
+  }
 
   return (
     <div className="mt-4 flex flex-col items-center gap-2 text-xs text-white/60">
@@ -30,7 +42,7 @@ export function DevBar() {
         {people.map((p) => (
           <button
             key={p.id}
-            onClick={() => setPerson(p.id)}
+            onClick={() => switchPerson(p.id)}
             title={p.name}
             className={`rounded-full px-2.5 py-1 ${
               p.id === session.personId

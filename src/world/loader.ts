@@ -5,12 +5,14 @@ import {
   deviceSchema,
   photoMetaSchema,
   profileSchema,
+  scenarioSchema,
   themeSchema,
   type AppDefinition,
   type Contact,
   type Device,
   type Photo,
   type Profile,
+  type Scenario,
   type Theme,
 } from './schema';
 import type { z } from 'zod';
@@ -31,6 +33,7 @@ export interface World {
   apps: Record<string, AppDefinition>;
   themes: Record<string, Theme>;
   people: Record<string, LoadedPerson>;
+  scenarios: Record<string, Scenario>;
 }
 
 // --- raw file maps (path -> contents) -------------------------------------
@@ -72,6 +75,12 @@ const galleryMetaFiles = import.meta.glob('/world/people/*/files/gallery/*.yaml'
 
 const galleryImageFiles = import.meta.glob('/world/people/*/files/gallery/*.svg', {
   query: '?url',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const scenarioFiles = import.meta.glob('/world/scenarios/*.md', {
+  query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>;
@@ -166,7 +175,14 @@ function buildWorld(): World {
     };
   }
 
-  return { apps, themes, people };
+  const scenarios: Record<string, Scenario> = {};
+  for (const [path, raw] of Object.entries(scenarioFiles)) {
+    const { data } = parseFrontmatter(raw);
+    const scenario = validate(scenarioSchema, data, path);
+    scenarios[scenario.id] = scenario;
+  }
+
+  return { apps, themes, people, scenarios };
 }
 
 /**
@@ -206,6 +222,48 @@ export function validateIntegrity(w: World): void {
       }
     }
   }
+  for (const scenario of Object.values(w.scenarios)) {
+    for (const step of scenario.steps) {
+      if (step.kind === 'clock') continue;
+      const person = w.people[step.person];
+      if (!person) {
+        errors.push(
+          `scenario "${scenario.id}": step references unknown person "${step.person}"`,
+        );
+        continue;
+      }
+      const device = step.device
+        ? person.devices.find((d) => d.id === step.device)
+        : person.devices[0];
+      if (step.device && !device) {
+        errors.push(
+          `scenario "${scenario.id}": step references unknown device "${step.device}" for "${person.id}"`,
+        );
+      }
+      if (step.kind === 'focus' && typeof step.screen === 'object') {
+        const appId = step.screen.app;
+        if (!w.apps[appId]) {
+          errors.push(
+            `scenario "${scenario.id}": step references unknown app "${appId}"`,
+          );
+        } else if (device && !device.apps.includes(appId)) {
+          errors.push(
+            `scenario "${scenario.id}": step opens app "${appId}" not installed on ${person.id}'s device "${device.id}"`,
+          );
+        }
+      }
+      if (step.kind === 'share') {
+        for (const photoId of step.photos) {
+          if (!person.gallery.some((p) => p.id === photoId)) {
+            errors.push(
+              `scenario "${scenario.id}": step shares unknown photo "${photoId}" from ${person.id}'s gallery`,
+            );
+          }
+        }
+      }
+    }
+  }
+
   if (errors.length) {
     throw new Error(`World integrity errors:\n  - ${errors.join('\n  - ')}`);
   }

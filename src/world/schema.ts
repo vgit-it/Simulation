@@ -82,3 +82,35 @@ export interface Photo extends PhotoMeta {
   id: string;
   url: string;
 }
+
+const focusScreenSchema = z.union([
+  z.literal('locked'),
+  z.literal('home'),
+  z.object({ app: z.string() }),
+]);
+
+/** One step of a scenario: advance the clock, cut to a person's phone, or share. */
+export const scenarioStepSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('clock'), at: z.coerce.date() }),
+  z.object({
+    kind: z.literal('focus'),
+    person: z.string(),
+    device: z.string().optional(),
+    screen: focusScreenSchema.default('home'),
+  }),
+  z.object({
+    kind: z.literal('share'),
+    person: z.string(),
+    device: z.string().optional(),
+    photos: z.array(z.string()).min(1),
+  }),
+]);
+export type ScenarioStep = z.infer<typeof scenarioStepSchema>;
+
+export const scenarioSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().default(''),
+  steps: z.array(scenarioStepSchema).min(1),
+});
+export type Scenario = z.infer<typeof scenarioSchema>;
