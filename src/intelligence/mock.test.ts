@@ -35,4 +35,27 @@ describe('MockIntelligence', () => {
     expect(draft.recipients.map((r) => r.id)).toEqual(['sam-ruiz']);
     expect(draft.message).toContain('photo');
   });
+
+  it('suggests sharing this week’s photos that include other people', () => {
+    const suggestions = brain.suggestShares(
+      [
+        photo('a', '2026-07-15', ['ava-chen', 'sam-ruiz']), // this week, w/ others
+        photo('b', '2026-07-14', ['ava-chen']), // this week, solo -> excluded
+        photo('c', '2026-05-01', ['ava-chen', 'maya-osei']), // earlier -> excluded
+      ],
+      now,
+    );
+    const week = suggestions.find((s) => s.id === 'share-this-week');
+    expect(week).toBeDefined();
+    expect(week!.photos.map((p) => p.id)).toEqual(['a']);
+    expect(week!.intent).toBe('share-photos');
+  });
+
+  it('makes no suggestions when nothing recent includes other people', () => {
+    const suggestions = brain.suggestShares(
+      [photo('a', '2026-07-15', ['ava-chen'])],
+      now,
+    );
+    expect(suggestions).toHaveLength(0);
+  });
 });

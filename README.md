@@ -97,8 +97,9 @@ subpath and can be opened on a real phone.
 - **M1** ✅ Phone shell + Photos.
 - **M1.5** ✅ Foundation: runtime state/event log, action pipeline + approve/send,
   context assembly, session/POV, person-scoped brains, tests.
-- **M2** Assistant surface — persistent entry point, multi-select share, activity view.
-- **M3** Multiple people + contacts graph.
+- **M2** ✅ Assistant surface — persistent ✨ assistant with proactive suggestions
+  and an activity feed; Photos multi-select share.
+- **M3** Multiple people + contacts graph (+ inbox/threads).
 - **M4** Scenarios that play sequences across people/devices.
 - **M5** Real LLM provider behind the intelligence interface.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

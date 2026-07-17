@@ -18,6 +18,15 @@ export interface ShareDraft {
   message: string;
 }
 
+/** A proactive thing the assistant offers to do, given the current world. */
+export interface Suggestion {
+  id: string;
+  intent: string;
+  title: string;
+  subtitle: string;
+  photos: Photo[];
+}
+
 /**
  * One person's "brain": the shared intelligence for a person, used across all of
  * that person's devices. Deterministic in the mock; an LLM-backed brain later
@@ -32,6 +41,8 @@ export interface PersonIntelligence {
   peopleInPhoto(photo: Photo): ResolvedPerson[];
   /** Draft who to share the given photos with, and a message to send. */
   draftShare(photos: Photo[]): ShareDraft;
+  /** Proactive suggestions given the person's gallery and the current time. */
+  suggestShares(photos: Photo[], now: Date): Suggestion[];
 }
 
 /**

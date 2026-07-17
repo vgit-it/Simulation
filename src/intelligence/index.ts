@@ -8,6 +8,7 @@ export type {
   PhotoGroup,
   ResolvedPerson,
   ShareDraft,
+  Suggestion,
 } from './types';
 
 /**

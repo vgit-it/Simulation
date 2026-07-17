@@ -4,6 +4,7 @@ import { themeToCssVars } from '../theme';
 import { useSession } from '../session';
 import { useStore } from '../state';
 import { appRegistry } from '../apps/registry';
+import { Assistant } from '../assistant/Assistant';
 import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
@@ -39,7 +40,10 @@ export function Phone() {
   }
 
   return (
-    <DeviceFrame themeVars={themeVars}>
+    <DeviceFrame
+      themeVars={themeVars}
+      overlay={screen.kind !== 'locked' ? <Assistant /> : undefined}
+    >
       {screen.kind === 'locked' && (
         <LockScreen owner={owner} onUnlock={() => setScreen({ kind: 'home' })} />
       )}

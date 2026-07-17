@@ -5,6 +5,7 @@ import type {
   PhotoGroup,
   ResolvedPerson,
   ShareDraft,
+  Suggestion,
 } from './types';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -60,6 +61,50 @@ class MockPersonIntelligence implements PersonIntelligence {
     const message = `Hey! Sharing ${noun}${placePhrase} — thought you'd want them. 📷`;
 
     return { recipients, message };
+  }
+
+  suggestShares(photos: Photo[], now: Date): Suggestion[] {
+    const hasOthers = (p: Photo) => p.people.some((id) => id !== this.personId);
+    const groups = this.groupPhotosByTime(photos, now);
+    const thisWeek = (groups.find((g) => g.key === 'this-week')?.photos ?? [])
+      .filter(hasOthers);
+
+    const suggestions: Suggestion[] = [];
+
+    // Hero suggestion: share this week's photos with the people in them.
+    if (thisWeek.length) {
+      const draft = this.draftShare(thisWeek);
+      suggestions.push({
+        id: 'share-this-week',
+        intent: 'share-photos',
+        title: `Share this week's ${thisWeek.length} photo${
+          thisWeek.length === 1 ? '' : 's'
+        }`,
+        subtitle: draft.recipients.length
+          ? `With ${draft.recipients.map((r) => r.name).join(', ')}`
+          : '',
+        photos: thisWeek,
+      });
+    }
+
+    // A narrower nudge: the single most recent photo that has other people.
+    const latest = [...photos]
+      .filter(hasOthers)
+      .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+    if (latest && thisWeek.length !== 1) {
+      const draft = this.draftShare([latest]);
+      suggestions.push({
+        id: `share-latest-${latest.id}`,
+        intent: 'share-photos',
+        title: `Share your ${latest.location} photo`,
+        subtitle: draft.recipients.length
+          ? `With ${draft.recipients.map((r) => r.name).join(', ')}`
+          : '',
+        photos: [latest],
+      });
+    }
+
+    return suggestions;
   }
 }
 
