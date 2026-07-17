@@ -38,6 +38,11 @@ script runs (Ava shares, the clock advances, focus cuts to the recipients'
 Messages app), dispatching the exact same `propose`/`commit` calls a human tap
 would.
 
+The assistant sheet also has an **Ask** box — a free-form chat backed by the
+same deterministic mock brain (ask about sharing this week's photos, or about
+a contact by name). It's the harness a real model will plug into later; today
+it's a scripted stand-in, not a network call.
+
 Run tests with `npm run test`.
 
 ## How it's organized
@@ -123,5 +128,8 @@ subpath and can be opened on a real phone.
   `focus`/`share` steps; a pure step runner + **ScenarioBar** play them, hopping
   the phone frame between actors and firing the same `propose`/`commit` calls a
   human tap would.
+- **Assistant chat (pre-M5)** ✅ An open-ended **Ask** box on the assistant
+  sheet, backed by a new `respond()` brain method — the exact context/reply
+  harness a real model will plug into, still mock/deterministic for now.
 - **M5** Real LLM provider behind the intelligence interface.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

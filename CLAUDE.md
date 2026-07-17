@@ -325,7 +325,7 @@ asset ids (Photo→Asset), unread badges (needs a `ThreadRead` event + reducer
 semantics), a global toast surface (the `DeviceFrame` overlay slot is the
 seam), per-theme motion tokens. (Scenarios landed as M4.)
 
-### M4 — Scenarios ✅ (current)
+### M4 — Scenarios ✅
 
 `world/scenarios/*.md` are authored, schema-validated content (same flat-file
 pattern as apps/themes): an `id`/`name`/`description` plus a `steps:` list of
@@ -353,12 +353,38 @@ Deferred: simultaneous multi-device visualization, branching/conditional
 scenarios, step kinds beyond clock/focus/share (e.g. a `message`/reply step
 once M3's "reply from inbox" lands).
 
+### Assistant chat — mock-backed harness ✅ (current, pre-M5)
+
+The Assistant sheet gained a third section, **Ask**: a free-form text box next
+to Suggestions/Recent activity. `PersonIntelligence` gained one method,
+`respond(ctx: ContextBundle, history: ChatTurn[], message: string):
+ChatReply` (`src/intelligence/types.ts`) — the mock implementation
+(`src/intelligence/mock.ts`) is deterministic keyword rules (share/photo
+keywords reuse `suggestShares`; a contact's name reports `sharedPhotoCount`;
+anything else gets a scripted fallback that's honest about not being a real
+model yet). `Assistant.tsx` calls it exactly like `onSuggestion` calls
+`draftShare` — `assembleContext` → `intelligenceFor(personId).respond(...)` —
+no new plumbing.
+
+This exists because `ContextBundle`'s own doc comment already called it out —
+*"the bundle an LLM decider would receive later"* — so this **is** the
+harness M5 plugs a real model into; today `respond()` is a pure function
+over already-known world/state data, not a network call. Note on M5's key
+strategy below: a Claude.ai subscription **cannot** back this — Anthropic's
+Agent SDK docs are explicit that third-party products may not authenticate
+via claude.ai login/subscription rate limits, only an API key. Deferred:
+wiring a real model behind `LLMIntelligence.respond` (needs the key +
+proxy-hosting decisions below), persisting chat history to the event log,
+letting a reply spawn a `Proposal` the way suggestions do.
+
 ### M5 — Real LLM provider
 
 Implement `LLMIntelligence` behind the existing `IntelligenceProvider` interface
 and select it via config. Decide the key strategy at that point (client-side key
 vs. serverless proxy) — GitHub Pages is static-only, so a real backend requires a
-serverless function. Keep the mock as the default/offline provider.
+serverless function. A Claude.ai Pro/Max subscription is not a valid backend for
+this (see above) — it must be a real Anthropic API key, held server-side.
+Keep the mock as the default/offline provider.
 
 ### M6 — More device shells & richer visuals
 
