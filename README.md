@@ -6,9 +6,11 @@ apps are Markdown definitions, files are placeholders with metadata, and the
 "intelligence" is a pluggable adapter that starts fully mocked (no LLM tokens
 spent) and can be swapped for a real model later.
 
-Through **Milestone 3** it's a multi-person world: six residents with their own
-themed phones and galleries, a **Photos** app, a persistent **assistant**, and a
-**Messages** inbox where shares actually arrive — all driven by authored content.
+Through **Milestone 4** it's a multi-person world: six residents with their own
+themed phones and galleries, a **Photos** app, a persistent **assistant**, a
+**Messages** inbox where shares actually arrive, and now scripted **scenarios**
+that play a sequence of interactions across people/devices — all driven by
+authored content.
 
 ## Quick start
 
@@ -30,6 +32,12 @@ Then use the **POV switcher** in the dev bar to embody a recipient and open
 with photo thumbnails). **Contacts** shows each person's graph, derived from who
 they co-appear with in photos.
 
+Or let it play itself: pick a scenario in the **ScenarioBar** (next to the dev
+bar) and hit **Step** or **Play** — the phone frame hops between actors as the
+script runs (Ava shares, the clock advances, focus cuts to the recipients'
+Messages app), dispatching the exact same `propose`/`commit` calls a human tap
+would.
+
 Run tests with `npm run test`.
 
 ## How it's organized
@@ -45,15 +53,17 @@ world/                     # CONTENT — authored, no code
     devices/phone.md       # a device: theme + installed apps
     files/gallery/         # img-00N.svg + img-00N.yaml (metadata sidecar)
   themes/<theme>.md        # visual identity as tokens (one per resident)
+  scenarios/<scenario>.md  # scripted step sequences (clock/focus/share)
 src/
-  world/                   # loaders + zod schemas + graph (contactsOf/resolveAsset)
+  world/                   # loaders + zod schemas + graph (contactsOf/resolveAsset/getScenario)
   state/                   # runtime state: event log + reducer + store (mutable)
   session/                 # POV: which person/device is embodied (+ person/device switch)
   intelligence/            # person brains behind one swappable interface
   context/                 # assembleContext → bundle a decider consumes
   actions/                 # propose/commit pipeline + approve/send sheet
   assistant/               # persistent ✨ assistant: suggestions + activity
-  phone/                   # device frame, status bar, lock/home, router, dev bar
+  scenarios/               # pure step runner (resolveStep) + ScenarioBar player UI
+  phone/                   # device frame, status bar, lock/home, router (controlled screen), dev bar
   apps/                    # app registry + Photos / Messages / Contacts renderers
   theme/                   # theme tokens → CSS variables
   config.ts                # sim start clock, hero person/device, provider choice
@@ -109,6 +119,9 @@ subpath and can be opened on a real phone.
   phones; **POV switcher** to embody any of them; a **Messages** inbox where
   shares actually arrive (threads + photo thumbnails) and a **Contacts** app for
   the derived people graph.
-- **M4** Scenarios that play sequences across people/devices.
+- **M4** ✅ Scenarios — `world/scenarios/*.md` script a sequence of `clock`/
+  `focus`/`share` steps; a pure step runner + **ScenarioBar** play them, hopping
+  the phone frame between actors and firing the same `propose`/`commit` calls a
+  human tap would.
 - **M5** Real LLM provider behind the intelligence interface.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

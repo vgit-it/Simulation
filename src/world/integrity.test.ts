@@ -11,6 +11,7 @@ describe('world integrity', () => {
     const broken: World = {
       apps: { photos: world.apps.photos },
       themes: {},
+      scenarios: {},
       people: {
         x: {
           id: 'x',
@@ -33,6 +34,7 @@ describe('world integrity', () => {
     const broken: World = {
       apps: {},
       themes: {},
+      scenarios: {},
       people: {
         x: {
           id: 'x',

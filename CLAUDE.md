@@ -108,16 +108,16 @@ world/                         # CONTENT — authored, no code
       gallery/<id>.yaml        # metadata sidecar: date, location, people[], tags[]
       documents/               # (reserved)
   themes/<theme>.md            # visual identity tokens; one per resident
-  scenarios/                   # (reserved for M4)
+  scenarios/<scenario>.md      # scripted step sequences (clock/focus/share) — played by ScenarioBar
 src/
   config.ts                    # SIM_START, HERO_PERSON/DEVICE, provider choice
   world/                       # loaders + zod schemas -> typed seed World + selectors
     frontmatter.ts             # browser-safe frontmatter/YAML parsing
     schema.ts                  # zod schemas + inferred types
     loader.ts                  # import.meta.glob discovery + integrity check -> World
-    index.ts                   # World selectors (getPerson/resolvePerson/contactsOf/resolveAsset/...)
+    index.ts                   # World selectors (getPerson/resolvePerson/contactsOf/resolveAsset/getScenario/...)
   state/                       # runtime state: event log, reducer, store (mutable)
-    events.ts                  # SimEvent union (MessageSent, FactRecorded, ...)
+    events.ts                  # SimEvent union (MessageSent, FactRecorded, ClockSet, ...)
     reducer.ts                 # apply/reduce/hydrate + RuntimeState
     selectors.ts               # selectNow, messagesFrom/Involving, inboxThreads, ...
     persistence.ts             # localStorage load/save/clear of the log
@@ -130,15 +130,19 @@ src/
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
   assistant/                   # persistent assistant: suggestions + activity feed
+  scenarios/                   # scenario playback: pure step runner + ScenarioBar UI
+    runner.ts                  # resolveStep(step, state) -> events/focus/screen (pure)
+    ScenarioBar.tsx             # out-of-phone player: pick/step/play a scenario
   theme/                       # theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
+    Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
     photos/                    # the Photos app (gallery + detail + share)
     messages/                  # inbox of threads (MessagesApp) + Thread view
     contacts/                  # read-only derived contacts graph (ContactsApp)
-  App.tsx                      # stage: providers + embodied device + dev bar
+  App.tsx                      # providers + Stage (owns screen state, mounts Phone/DevBar/ScenarioBar)
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
 ```
@@ -210,6 +214,16 @@ their point of view. Attachments render via `resolveAsset(senderId, assetId)`.
 `useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
 log is persisted automatically, so anything you record survives reloads.
 
+**Add a scenario:** author `world/scenarios/<id>.md` with `id`, `name`,
+`description`, and a `steps:` list of `clock` (advance the sim clock), `focus`
+(cut to a person's phone on `locked`/`home`/`{app: <id>}`), or `share` (script
+a `propose('share-photos', ctx, photos)` → `commit` for that person's own
+gallery photos). It appears in the `ScenarioBar` picker automatically — no code.
+`resolveStep(step, state)` (`src/scenarios/runner.ts`) is the pure function
+turning one step into events + where to focus; `ScenarioBar` dispatches them
+and drives `session.setPerson`/`setDevice` + the lifted `Phone` screen, the
+same levers `DevBar` exposes to a human.
+
 ## Content conventions
 
 - **Ids** are kebab-case and stable (they are referenced across files, e.g. a
@@ -277,7 +291,7 @@ running **activity feed** of sent items (read from the persisted event log).
 Photos gained a **multi-select** mode that shares many photos in one proposal.
 All built on the M1.5 pipeline — new UI + one brain method, no new plumbing.
 
-### M3 — Multiple people + contacts graph ✅ (current)
+### M3 — Multiple people + contacts graph ✅
 
 A multi-person world: six residents (Ava + Sam, Maya, Leo, plus new residents
 Nadia and Theo), each a full person with their own themed phone and gallery.
@@ -298,14 +312,33 @@ selectors (`messagesInvolving`, `inboxThreads`, `contactsOf`), no new plumbing.
 Deferred: replying from the inbox, message-based (runtime) contacts, global
 asset ids (Photo→Asset), scenarios (M4).
 
-### M4 — Scenarios (next)
+### M4 — Scenarios ✅ (current)
 
-`world/scenarios/*` describe sequences of interactions across people/devices; a
-runner plays them and visualizes each device's screen state. Useful for demoing
-"how things would happen" without manual clicking. The pieces are in place: a
-global event log, multiple embodiable people, and the propose/commit pipeline —
-a scenario is a scripted sequence of `propose/commit` calls with `ClockSet`
-events between them.
+`world/scenarios/*.md` are authored, schema-validated content (same flat-file
+pattern as apps/themes): an `id`/`name`/`description` plus a `steps:` list of
+three kinds — `clock` (advance the sim clock), `focus` (cut to a person's phone
+on a given screen), and `share` (script a real `propose('share-photos', ctx,
+photos)` → `commit` call). `resolveStep(step, state)` (`src/scenarios/
+runner.ts`) is a pure function turning one step into `{ events, focus?,
+screen? }`; the `ScenarioBar` (out-of-phone chrome beside `DevBar`) picks a
+scenario, then Steps/Plays through it by dispatching those events and driving
+`session.setPerson`/`setDevice` — the exact same imperative levers `DevBar`
+already exposed to a human, just sequenced by a script.
+
+The one new mechanism: `Phone`'s lock/home/app screen was lifted out of local
+`useState` into controlled props (`screen`/`onScreenChange`), now owned by a
+`Stage` component in `App.tsx`, so a scenario can "tap" through a screen
+without a human clicking — `Phone` itself is unchanged behaviorally, it just
+re-renders off props instead of internal state. The player shows **one phone
+frame that hops between actors** per step (not simultaneous multi-device
+panes) — the cheapest option, since it needs no decoupling of `Phone` from the
+global `session`.
+
+All on the M1.5/M3 substrate — one new content type, one pure step-resolver, one
+UI component, no new event types (`ClockSet` already existed, unused until now).
+Deferred: simultaneous multi-device visualization, branching/conditional
+scenarios, step kinds beyond clock/focus/share (e.g. a `message`/reply step
+once M3's "reply from inbox" lands).
 
 ### M5 — Real LLM provider
 
@@ -331,8 +364,9 @@ image generation for scenario output.
   generated images) before M6 image generation; expand the theme schema toward a
   full design-token set (typography/spacing/wallpaper) when the style-guide work
   lands. Neither is built yet — don't over-invest early, but don't block them.
-- The event log is the substrate for scenarios (M4): a scenario is essentially a
-  scripted sequence of `propose/commit` calls with `ClockSet` events between
-  them. Keep new effects expressible as events so scenarios can replay them.
+- Keep new effects expressible as `SimEvent`s so scenarios can script them the
+  same way `share` steps script `propose`/`commit` today — a scenario step
+  should never need a parallel effect path from the one a human interaction
+  uses.
 - Prefer extending schemas and registries over adding conditionals; the codebase
   should stay "add a file, it shows up."

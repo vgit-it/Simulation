@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { getApp, getDevice, getPerson, getTheme } from '../world';
 import { themeToCssVars } from '../theme';
 import { useSession } from '../session';
@@ -9,13 +9,18 @@ import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
 
-type Screen =
+export type Screen =
   | { kind: 'locked' }
   | { kind: 'home' }
   | { kind: 'app'; appId: string };
 
+interface PhoneProps {
+  screen: Screen;
+  onScreenChange: (screen: Screen) => void;
+}
+
 /** Orchestrates the embodied device: theme + lock/home/app state machine. */
-export function Phone() {
+export function Phone({ screen, onScreenChange }: PhoneProps) {
   const { session } = useSession();
   const { state, dispatch } = useStore();
   const owner = useMemo(() => getPerson(session.personId), [session.personId]);
@@ -27,13 +32,6 @@ export function Phone() {
     () => themeToCssVars(getTheme(device.theme)),
     [device.theme],
   );
-  const [screen, setScreen] = useState<Screen>({ kind: 'locked' });
-
-  // Embodying a different person is "picking up their phone": start from the
-  // lock screen so the POV switch reads clearly.
-  useEffect(() => {
-    setScreen({ kind: 'locked' });
-  }, [session.personId]);
 
   function openApp(appId: string) {
     dispatch({
@@ -42,7 +40,7 @@ export function Phone() {
       person: session.personId,
       appId,
     });
-    setScreen({ kind: 'app', appId });
+    onScreenChange({ kind: 'app', appId });
   }
 
   return (
@@ -51,7 +49,10 @@ export function Phone() {
       overlay={screen.kind !== 'locked' ? <Assistant /> : undefined}
     >
       {screen.kind === 'locked' && (
-        <LockScreen owner={owner} onUnlock={() => setScreen({ kind: 'home' })} />
+        <LockScreen
+          owner={owner}
+          onUnlock={() => onScreenChange({ kind: 'home' })}
+        />
       )}
 
       {screen.kind === 'home' && (
@@ -59,7 +60,7 @@ export function Phone() {
           owner={owner}
           device={device}
           onOpenApp={openApp}
-          onLock={() => setScreen({ kind: 'locked' })}
+          onLock={() => onScreenChange({ kind: 'locked' })}
         />
       )}
 
@@ -74,7 +75,7 @@ export function Phone() {
                   No renderer registered for “{app.name}”.
                 </p>
                 <button
-                  onClick={() => setScreen({ kind: 'home' })}
+                  onClick={() => onScreenChange({ kind: 'home' })}
                   className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white"
                 >
                   Back
@@ -87,7 +88,7 @@ export function Phone() {
               owner={owner}
               device={device}
               app={app}
-              onClose={() => setScreen({ kind: 'home' })}
+              onClose={() => onScreenChange({ kind: 'home' })}
             />
           );
         })()}
