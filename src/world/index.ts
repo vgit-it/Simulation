@@ -75,10 +75,14 @@ export function contactsOf(personId: string): ResolvedPerson[] {
   return contacts;
 }
 
+/** The owner's photos a given contact co-appears in. */
+export function sharedPhotos(ownerId: string, personId: string): Photo[] {
+  return getPerson(ownerId).gallery.filter((p) => p.people.includes(personId));
+}
+
 /** How many of the owner's photos a given contact co-appears in. */
 export function sharedPhotoCount(ownerId: string, personId: string): number {
-  return getPerson(ownerId).gallery.filter((p) => p.people.includes(personId))
-    .length;
+  return sharedPhotos(ownerId, personId).length;
 }
 
 /**

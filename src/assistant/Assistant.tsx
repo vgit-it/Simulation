@@ -5,6 +5,7 @@ import { assembleContext } from '../context';
 import { intelligenceFor, type Suggestion } from '../intelligence';
 import { useSession } from '../session';
 import { messagesFrom, useNow, useStore } from '../state';
+import { Sheet } from '../ui';
 import { getPerson, resolvePerson } from '../world';
 
 /**
@@ -36,99 +37,107 @@ export function Assistant() {
 
   return (
     <>
-      {!open && (
+      {/* Entrance pop lives on the wrapper so its fill-mode can't pin the
+          button's transform, which the open/close scale toggle animates. */}
+      <span
+        className="absolute bottom-24 right-5 z-20 block animate-pop"
+        style={{ animationDelay: '350ms' }}
+      >
         <button
           onClick={() => setOpen(true)}
           aria-label="Open assistant"
-          className="absolute bottom-24 right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-lg shadow-black/40 active:scale-95"
+          className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-fab transition duration-200 ease-out-soft active:scale-90 ${
+            open ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
+          }`}
         >
           ✨
+          {suggestions.length > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 animate-pop rounded-full bg-white ring-[3px] ring-accent" />
+          )}
         </button>
-      )}
+      </span>
 
-      {open && (
-        <div className="absolute inset-0 z-30 flex flex-col justify-end">
+      <Sheet
+        open={open}
+        onDismiss={() => setOpen(false)}
+        dismissLabel="Close assistant"
+        maxHeightClass="max-h-[85%]"
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">✨ Assistant</h2>
           <button
-            aria-label="Close assistant"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/50"
-          />
-          <div className="relative max-h-[85%] overflow-y-auto rounded-t-3xl bg-surface p-5 pb-8 shadow-2xl">
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-text/30" />
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">✨ Assistant</h2>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-              >
-                Close
-              </button>
-            </div>
-
-            <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
-              Suggestions
-            </h3>
-            {suggestions.length === 0 ? (
-              <p className="text-sm text-muted">Nothing to suggest right now.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => onSuggestion(s)}
-                    className="flex items-center gap-3 rounded-card bg-bg/60 p-3 text-left active:opacity-80"
-                  >
-                    <span className="text-xl">📷</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium">{s.title}</span>
-                      {s.subtitle && (
-                        <span className="block truncate text-xs text-muted">
-                          {s.subtitle}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
-              Recent activity
-            </h3>
-            {activity.length === 0 ? (
-              <p className="text-sm text-muted">No messages sent yet.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {[...activity].reverse().map((m) => {
-                  const names = m.to
-                    .map((id) => resolvePerson(session.personId, id).name)
-                    .join(', ');
-                  return (
-                    <div key={m.id} className="rounded-card bg-bg/60 p-3">
-                      <p className="text-xs text-muted">To {names}</p>
-                      <p className="mt-0.5 text-sm">{m.body}</p>
-                      {m.attachments.length > 0 && (
-                        <p className="mt-1 text-xs text-accent">
-                          📎 {m.attachments.length} photo
-                          {m.attachments.length === 1 ? '' : 's'}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted transition duration-150 active:scale-95"
+          >
+            Close
+          </button>
         </div>
-      )}
 
-      {proposal && (
-        <ProposalSheet
-          proposal={proposal}
-          onSent={() => setProposal(null)}
-          onCancel={() => setProposal(null)}
-        />
-      )}
+        <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
+          Suggestions
+        </h3>
+        {suggestions.length === 0 ? (
+          <p className="text-sm text-muted">Nothing to suggest right now.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {suggestions.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => onSuggestion(s)}
+                className="flex animate-rise items-center gap-3 rounded-card bg-bg/60 p-3 text-left ring-1 ring-text/5 transition duration-150 active:scale-[0.98]"
+                style={{ animationDelay: `${i * 40}ms` }}
+              >
+                <span className="text-xl">📷</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{s.title}</span>
+                  {s.subtitle && (
+                    <span className="block truncate text-xs text-muted">
+                      {s.subtitle}
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
+          Recent activity
+        </h3>
+        {activity.length === 0 ? (
+          <p className="text-sm text-muted">No messages sent yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {[...activity].reverse().map((m, i) => {
+              const names = m.to
+                .map((id) => resolvePerson(session.personId, id).name)
+                .join(', ');
+              return (
+                <div
+                  key={m.id}
+                  className="animate-rise rounded-card bg-bg/60 p-3 ring-1 ring-text/5"
+                  style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                >
+                  <p className="text-xs text-muted">To {names}</p>
+                  <p className="mt-0.5 text-sm">{m.body}</p>
+                  {m.attachments.length > 0 && (
+                    <p className="mt-1 text-xs text-accent">
+                      📎 {m.attachments.length} photo
+                      {m.attachments.length === 1 ? '' : 's'}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Sheet>
+
+      <ProposalSheet
+        proposal={proposal}
+        onSent={() => setProposal(null)}
+        onCancel={() => setProposal(null)}
+      />
     </>
   );
 }

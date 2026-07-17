@@ -5,6 +5,7 @@ import { assembleContext } from '../../context';
 import { intelligenceFor } from '../../intelligence';
 import { useSession } from '../../session';
 import { useNow, useStore } from '../../state';
+import { AppHeader, EmptyState, PillButton, useMountTransition } from '../../ui';
 import type { Photo } from '../../world';
 import type { AppScreenProps } from '../types';
 import { PhotoDetail } from './PhotoDetail';
@@ -27,6 +28,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [proposal, setProposal] = useState<Proposal | null>(null);
+  const actionBar = useMountTransition(selecting, 300);
 
   if (openPhoto) {
     return <PhotoDetail photo={openPhoto} onBack={() => setOpenPhoto(null)} />;
@@ -56,38 +58,33 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
     setProposal(propose('share-photos', ctx, photos));
   }
 
+  // Flat index across groups so the entrance stagger sweeps the whole grid.
+  let tileIndex = 0;
+
   return (
     <div className="relative flex h-full flex-col bg-bg">
-      <header className="flex items-center justify-between px-5 pb-3 pt-2">
-        <h1 className="text-2xl font-bold">Photos</h1>
-        <div className="flex gap-2">
-          {selecting ? (
-            <button
-              onClick={exitSelect}
-              className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-            >
-              Cancel
-            </button>
+      <AppHeader
+        title="Photos"
+        actions={
+          selecting ? (
+            <PillButton onClick={exitSelect}>Cancel</PillButton>
           ) : (
             <>
-              <button
-                onClick={() => setSelecting(true)}
-                className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-              >
-                Select
-              </button>
-              <button
-                onClick={onClose}
-                className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted"
-              >
-                Home
-              </button>
+              <PillButton onClick={() => setSelecting(true)}>Select</PillButton>
+              <PillButton onClick={onClose}>Home</PillButton>
             </>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       <div className="flex-1 overflow-y-auto px-4 pb-24">
+        {groups.length === 0 && (
+          <EmptyState
+            icon="📷"
+            title="No photos yet"
+            hint="Photos added to this person's gallery appear here."
+          />
+        )}
         {groups.map((group) => (
           <section key={group.key} className="mb-6">
             <h2 className="mb-2 px-1 text-sm font-semibold text-muted">
@@ -96,24 +93,28 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
             <div className="grid grid-cols-3 gap-1.5">
               {group.photos.map((photo) => {
                 const isPicked = picked.has(photo.id);
+                const delay = Math.min(tileIndex++, 12) * 25;
                 return (
                   <button
                     key={photo.id}
                     onClick={() =>
                       selecting ? toggle(photo.id) : setOpenPhoto(photo)
                     }
-                    className="relative aspect-square overflow-hidden rounded-lg bg-surface active:opacity-80"
+                    className="relative aspect-square animate-rise overflow-hidden rounded-lg bg-surface transition-transform duration-150 active:scale-[0.97]"
+                    style={{ animationDelay: `${delay}ms` }}
                   >
                     <img
                       src={photo.url}
                       alt={photo.location}
-                      className={`h-full w-full object-cover transition ${
+                      className={`h-full w-full object-cover transition-opacity duration-200 ${
                         selecting && !isPicked ? 'opacity-60' : ''
                       }`}
                     />
                     {selecting && (
                       <span
-                        className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
+                        // Re-keying re-fires the pop each time the state flips.
+                        key={isPicked ? 'on' : 'off'}
+                        className={`absolute right-1.5 top-1.5 flex h-5 w-5 animate-pop items-center justify-center rounded-full border text-[11px] ${
                           isPicked
                             ? 'border-accent bg-accent text-white'
                             : 'border-white/70 bg-black/30 text-transparent'
@@ -130,29 +131,31 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
         ))}
       </div>
 
-      {selecting && (
-        <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 bg-surface/95 px-5 py-4 backdrop-blur">
+      {actionBar.mounted && (
+        <div
+          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-text/5 bg-surface/95 px-5 py-4 shadow-sheet backdrop-blur ${
+            actionBar.closing ? 'animate-slide-down' : 'animate-slide-up'
+          }`}
+        >
           <span className="text-sm text-muted">{picked.size} selected</span>
-          <button
+          <PillButton
+            variant="accent"
             disabled={picked.size === 0}
             onClick={shareSelected}
-            className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             Share
-          </button>
+          </PillButton>
         </div>
       )}
 
-      {proposal && (
-        <ProposalSheet
-          proposal={proposal}
-          onSent={() => {
-            setProposal(null);
-            exitSelect();
-          }}
-          onCancel={() => setProposal(null)}
-        />
-      )}
+      <ProposalSheet
+        proposal={proposal}
+        onSent={() => {
+          setProposal(null);
+          exitSelect();
+        }}
+        onCancel={() => setProposal(null)}
+      />
     </div>
   );
 }

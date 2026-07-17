@@ -10,15 +10,21 @@ function formatTime(d: Date): string {
 export function StatusBar() {
   const now = useNow();
   return (
-    <div className="flex items-center justify-between px-7 pt-3 pb-1 text-text">
+    <div className="flex items-center justify-between px-7 pb-1 pt-3 text-text transition-colors duration-500">
       <span className="text-sm font-semibold tabular-nums">
         {formatTime(now)}
       </span>
       <div className="flex items-center gap-1.5 text-[11px] font-medium">
         <span>5G</span>
-        <span aria-hidden>▮▮▮▯</span>
+        {/* CSS-drawn signal bars so they render identically cross-platform. */}
+        <span className="flex items-end gap-[2px]" aria-hidden>
+          <span className="h-1.5 w-[3px] rounded-sm bg-text/90" />
+          <span className="h-2 w-[3px] rounded-sm bg-text/90" />
+          <span className="h-2.5 w-[3px] rounded-sm bg-text/90" />
+          <span className="h-3 w-[3px] rounded-sm bg-text/30" />
+        </span>
         <span
-          className="inline-block h-3 w-6 rounded-[3px] border border-text/70 relative"
+          className="relative inline-block h-3 w-6 rounded-[3px] border border-text/70"
           aria-label="battery"
         >
           <span className="absolute inset-[2px] right-1.5 rounded-[1px] bg-text/90" />
