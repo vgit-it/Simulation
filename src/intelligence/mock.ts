@@ -68,6 +68,14 @@ class MockPersonIntelligence implements PersonIntelligence {
     return { recipients, message };
   }
 
+  draftMessage(recipients: ResolvedPerson[]): string {
+    if (!recipients.length) return 'Hey!';
+    const first = recipients[0].name.split(' ')[0];
+    return recipients.length === 1
+      ? `Hey ${first}! Just wanted to say hi — let's catch up soon. 😊`
+      : `Hey everyone! Just wanted to say hi — let's catch up soon. 😊`;
+  }
+
   suggestShares(photos: Photo[], now: Date): Suggestion[] {
     const hasOthers = (p: Photo) => p.people.some((id) => id !== this.personId);
     const groups = this.groupPhotosByTime(photos, now);
@@ -125,45 +133,117 @@ class MockPersonIntelligence implements PersonIntelligence {
     return top ? top.photos : [];
   }
 
+  /**
+   * Compose a plan from up to three capability families, keyed on the request
+   * keywords + the current selection kind:
+   *  - share-photos  (photo keywords, or a photos selection)
+   *  - send-message  (message keywords, or a people selection — a thread's
+   *    participants or a tapped contact — falling back to share recipients)
+   *  - create-reminder (remind keywords; title extracted from "remind me to …")
+   * Steps are gated on the app being installed on the embodied device, so the
+   * plan never contains a capability the device can't perform.
+   */
   plan(ctx: ContextBundle, request: string): Plan | null {
     const lower = request.toLowerCase();
-    const aboutSharing =
-      ['share', 'send', 'photo', 'pic'].some((k) => lower.includes(k)) ||
-      !!ctx.situation.selection;
-    if (!aboutSharing) return null;
-    if (!ctx.device.apps.includes('photos')) return null;
+    const sel = ctx.situation.selection;
+    const apps = ctx.device.apps;
+    const steps: PlanStep[] = [];
+    const goalBits: string[] = [];
 
-    const photos = this.requestPhotos(ctx);
-    if (!photos.length) return null;
-    const draft = this.draftShare(photos);
-    if (!draft.recipients.length) return null; // no one to share with
+    const peopleSelected =
+      sel?.kind === 'people' && sel.ids.length ? sel.ids : null;
+    const wantsShare =
+      /share|photo|pic/.test(lower) || sel?.kind === 'photos';
+    const wantsMessage =
+      /\b(message|tell|text|reply|say|write)\b/.test(lower) ||
+      (!!peopleSelected && !wantsShare);
+    const wantsReminder = /remind|forget|to-?do/.test(lower);
 
-    const ids = photos.map((p) => p.id);
-    const fromSelection =
-      ctx.situation.selection?.kind === 'photos' &&
-      ctx.situation.selection.ids.length > 0;
-    const count = photos.length;
-    const noun = `photo${count === 1 ? '' : 's'}`;
-    const names = draft.recipients.map((r) => r.name).join(', ');
+    // Share: gather (navigate) + share (action) in Photos.
+    let sharePhotos: Photo[] = [];
+    let shareRecipients: ResolvedPerson[] = [];
+    if (wantsShare && apps.includes('photos')) {
+      sharePhotos = this.requestPhotos(ctx);
+      const draft = sharePhotos.length ? this.draftShare(sharePhotos) : null;
+      if (draft?.recipients.length) {
+        shareRecipients = draft.recipients;
+        const fromSelection = sel?.kind === 'photos' && sel.ids.length > 0;
+        const count = sharePhotos.length;
+        const noun = `photo${count === 1 ? '' : 's'}`;
+        const names = shareRecipients.map((r) => r.name).join(', ');
+        steps.push(
+          {
+            id: 'gather',
+            app: 'photos',
+            description: fromSelection
+              ? `Review your ${count} selected ${noun}`
+              : `Gather this week's ${count} ${noun}`,
+          },
+          {
+            id: 'share',
+            app: 'photos',
+            intent: 'share-photos',
+            ids: sharePhotos.map((p) => p.id),
+            description: `Share ${count === 1 ? 'it' : 'them'} with ${names}`,
+          },
+        );
+        goalBits.push(`share ${count} ${noun} with ${names}`);
+      }
+    }
 
-    const steps: PlanStep[] = [
-      {
-        id: 'gather',
-        app: 'photos',
-        description: fromSelection
-          ? `Review your ${count} selected ${noun}`
-          : `Gather this week's ${count} ${noun}`,
-      },
-      {
-        id: 'share',
-        app: 'photos',
-        intent: 'share-photos',
-        ids,
-        description: `Share ${count === 1 ? 'it' : 'them'} with ${names}`,
-      },
-    ];
-    // Only add the confirmation hop if the device actually has Messages.
-    if (ctx.device.apps.includes('messages')) {
+    // Message: an action step in Messages, bound to the people selection or —
+    // "share these and tell them…" — to the share's recipients.
+    if (wantsMessage && apps.includes('messages')) {
+      const recipientIds =
+        peopleSelected ?? shareRecipients.map((r) => r.id);
+      if (recipientIds.length) {
+        const recipients = recipientIds.map((id) =>
+          resolvePerson(this.personId, id),
+        );
+        const names = recipients.map((r) => r.name).join(', ');
+        steps.push({
+          id: 'message',
+          app: 'messages',
+          intent: 'send-message',
+          ids: recipientIds,
+          payload: { text: this.draftMessage(recipients) },
+          description: `Send a message to ${names}`,
+        });
+        goalBits.push(`message ${names}`);
+      }
+    }
+
+    // Reminder: an action step in Reminders; the title comes from the request
+    // ("remind me to print one" -> "print one") or falls back to the share.
+    if (wantsReminder && apps.includes('reminders')) {
+      const match = request.match(/remind (?:me )?(?:to )?([^,.!?]+)/i);
+      const title =
+        match?.[1]?.trim() ??
+        (sharePhotos.length
+          ? `Follow up on ${sharePhotos.length} shared photo${
+              sharePhotos.length === 1 ? '' : 's'
+            }`
+          : 'Follow up');
+      steps.push({
+        id: 'remind',
+        app: 'reminders',
+        intent: 'create-reminder',
+        ids: sharePhotos.map((p) => p.id),
+        payload: { title },
+        description: `Add reminder: “${title}”`,
+      });
+      goalBits.push('add a reminder');
+    }
+
+    if (!steps.some((s) => s.intent)) return null;
+
+    // Confirmation hop: only when a share is the last effect (a send-message
+    // step already ends the plan inside Messages).
+    if (
+      steps.some((s) => s.intent === 'share-photos') &&
+      !steps.some((s) => s.intent === 'send-message') &&
+      apps.includes('messages')
+    ) {
       steps.push({
         id: 'confirm',
         app: 'messages',
@@ -171,9 +251,10 @@ class MockPersonIntelligence implements PersonIntelligence {
       });
     }
 
+    const goal = goalBits.join(' + ');
     return {
       id: uid('plan'),
-      goal: `Share ${count} ${noun} with ${names}`,
+      goal: goal.charAt(0).toUpperCase() + goal.slice(1),
       steps,
     };
   }

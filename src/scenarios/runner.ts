@@ -42,12 +42,11 @@ export function resolveStep(step: ScenarioStep, state: RuntimeState): StepResult
       const owner = getPerson(step.person);
       const deviceId = step.device ?? owner.devices[0].id;
       const session = { personId: step.person, deviceId };
-      const photos = owner.gallery.filter((p) => step.photos.includes(p.id));
       const ctx = assembleContext(session, state, {
         app: 'photos',
-        photoIds: photos.map((p) => p.id),
+        photoIds: step.photos,
       });
-      const proposal = propose('share-photos', ctx, photos);
+      const proposal = propose('share-photos', ctx, step.photos);
       return {
         events: proposal.events,
         focus: session,

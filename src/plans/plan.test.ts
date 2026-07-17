@@ -43,6 +43,63 @@ describe('MockIntelligence.plan', () => {
     expect(brain.plan(ctx, 'what time is it?')).toBeNull();
   });
 
+  it('composes share + reminder into one cross-app plan', () => {
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'photos', kind: 'photos', ids: ['img-001'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'share these and remind me to print one');
+    expect(plan).not.toBeNull();
+    const intents = plan!.steps.map((s) => s.intent).filter(Boolean);
+    expect(intents).toEqual(['share-photos', 'create-reminder']);
+    const remind = plan!.steps.find((s) => s.intent === 'create-reminder');
+    expect(remind?.payload).toEqual({ title: 'print one' });
+    expect(remind?.app).toBe('reminders');
+    expect(plan!.goal).toMatch(/\+ add a reminder/);
+  });
+
+  it('plans a send-message from a people selection (open thread / tapped contact)', () => {
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'messages', kind: 'people', ids: ['sam-ruiz'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'tell him hi');
+    expect(plan).not.toBeNull();
+    const msg = plan!.steps.find((s) => s.intent === 'send-message');
+    expect(msg?.ids).toEqual(['sam-ruiz']);
+    expect(msg?.app).toBe('messages');
+    expect((msg?.payload as { text: string }).text.length).toBeGreaterThan(0);
+  });
+
+  it('chains share + message to the share recipients ("share these and tell them...")', () => {
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'photos', kind: 'photos', ids: ['img-001'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'share these and tell them about Saturday');
+    expect(plan).not.toBeNull();
+    const intents = plan!.steps.map((s) => s.intent).filter(Boolean);
+    expect(intents).toEqual(['share-photos', 'send-message']);
+    // img-001 contains sam-ruiz -> he is the share recipient and message target.
+    const msg = plan!.steps.find((s) => s.intent === 'send-message');
+    expect(msg?.ids).toEqual(['sam-ruiz']);
+    // The message step already ends in Messages — no redundant confirm hop.
+    expect(plan!.steps.some((s) => s.id === 'confirm')).toBe(false);
+  });
+
+  it('skips steps whose app is not installed on the device', () => {
+    const ctx = assembleContext(session, state);
+    // Leo's phone: check what a reminder-less device would plan. Build a ctx
+    // with reminders stripped from the device app list.
+    const stripped = {
+      ...ctx,
+      device: { ...ctx.device, apps: ctx.device.apps.filter((a) => a !== 'reminders') },
+    };
+    const plan = brain.plan(stripped, 'share this week and remind me to print');
+    expect(plan).not.toBeNull();
+    expect(plan!.steps.some((s) => s.intent === 'create-reminder')).toBe(false);
+  });
+
   it('respond() surfaces a plan for an imperative request but not an advisory one', () => {
     const ctx = assembleContext(session, state);
     expect(brain.respond(ctx, [], "share this week's photos").plan).toBeDefined();

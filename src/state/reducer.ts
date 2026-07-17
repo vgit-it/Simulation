@@ -19,6 +19,15 @@ export interface Fact {
   value: string;
 }
 
+/** Derived record of a reminder. */
+export interface Reminder {
+  id: string;
+  at: number;
+  person: string;
+  title: string;
+  related: string[];
+}
+
 /** Derived record of a runtime plan the assistant ran. */
 export interface PlanRun {
   planId: string;
@@ -35,6 +44,7 @@ export interface RuntimeState {
   log: SimEvent[]; // append-only source of truth (persisted)
   messages: Message[];
   facts: Record<string, Fact[]>; // personId -> facts
+  reminders: Reminder[]; // in creation order
   plans: PlanRun[]; // runtime plans, in start order
 }
 
@@ -44,6 +54,7 @@ export function freshState(): RuntimeState {
     log: [],
     messages: [],
     facts: {},
+    reminders: [],
     plans: [],
   };
 }
@@ -85,6 +96,20 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
     }
     case 'ClockSet':
       return { ...state, clock: event.to };
+    case 'ReminderCreated':
+      return {
+        ...state,
+        reminders: [
+          ...state.reminders,
+          {
+            id: event.id,
+            at: event.at,
+            person: event.person,
+            title: event.title,
+            related: event.related,
+          },
+        ],
+      };
     case 'PlanStarted':
       return {
         ...state,

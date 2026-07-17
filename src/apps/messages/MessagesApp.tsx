@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from '../../session';
 import { inboxThreads, useStore } from '../../state';
 import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
 import { resolveAsset, resolvePerson } from '../../world';
@@ -21,6 +22,7 @@ function timeLabel(at: number): string {
  * log. Read-only for M3 (replying is a natural M4 follow-on).
  */
 export function MessagesApp({ owner, onClose }: AppScreenProps) {
+  const { setSelection } = useSession();
   const { state } = useStore();
   const threads = useMemo(
     () => inboxThreads(state, owner.id),
@@ -31,6 +33,18 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
   const openThread = openKey
     ? threads.find((t) => t.key === openKey)
     : undefined;
+
+  // The open thread's participants ARE the selection — "reply to them" /
+  // "share these with them" binds to whoever this conversation is with.
+  const participantsKey = openThread?.participantIds.join('+') ?? null;
+  useEffect(() => {
+    setSelection(
+      participantsKey
+        ? { app: 'messages', kind: 'people', ids: participantsKey.split('+') }
+        : null,
+    );
+  }, [participantsKey, setSelection]);
+  useEffect(() => () => setSelection(null), [setSelection]);
 
   if (openThread) {
     return (

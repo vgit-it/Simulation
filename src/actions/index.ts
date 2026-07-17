@@ -1,8 +1,7 @@
 import type { ContextBundle } from '../context';
 import type { ResolvedPerson } from '../intelligence';
 import type { SimEvent } from '../state';
-import type { Photo } from '../world';
-import { capabilityFor } from './capabilities';
+import { capabilityFor, type ActionPayload } from './capabilities';
 
 /**
  * The single action/intent pipeline shared by the assistant and scenarios:
@@ -29,25 +28,32 @@ export interface Proposal {
   attachments: string[];
   /** Events emitted on commit. */
   events: SimEvent[];
+  /** Why this proposal can't commit right now (disables the confirm button). */
+  invalidReason?: string;
+  /** Confirm-button label; defaults to 'Send'. */
+  confirmLabel?: string;
 }
 
 export {
   capabilityFor,
   listCapabilities,
   viableCapabilities,
+  type ActionPayload,
   type Capability,
 } from './capabilities';
 
-/** Build a proposal for an intent via the capability registry. */
+/**
+ * Build a proposal for an intent via the capability registry. `ids` are the
+ * object ids the action operates on (photos, people, ...); `payload` carries
+ * free-form inputs (message text, a reminder title).
+ */
 export function propose(
   intent: string,
   ctx: ContextBundle,
-  photos: Photo[],
+  ids: string[],
+  payload?: ActionPayload,
 ): Proposal {
-  return capabilityFor(intent).propose(
-    ctx,
-    photos.map((p) => p.id),
-  );
+  return capabilityFor(intent).propose(ctx, ids, payload);
 }
 
 /** Commit a proposal by emitting its events. */

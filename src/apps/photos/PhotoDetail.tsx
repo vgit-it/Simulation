@@ -42,7 +42,7 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
       app: 'photos',
       photoIds: [photo.id],
     });
-    setProposal(propose('share-photos', ctx, [photo]));
+    setProposal(propose('share-photos', ctx, [photo.id]));
   }
 
   return (

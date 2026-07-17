@@ -42,6 +42,17 @@ export interface ClockSetEvent {
   to: number; // new sim epoch ms
 }
 
+/** A reminder a person created (directly or via the assistant). */
+export interface ReminderCreatedEvent {
+  type: 'ReminderCreated';
+  id: string;
+  at: number;
+  person: string;
+  title: string;
+  /** Asset/photo ids this reminder refers to (renderable context). */
+  related: string[];
+}
+
 /** The assistant began executing a runtime plan for a person. */
 export interface PlanStartedEvent {
   type: 'PlanStarted';
@@ -66,6 +77,7 @@ export type SimEvent =
   | FactRecordedEvent
   | AppOpenedEvent
   | ClockSetEvent
+  | ReminderCreatedEvent
   | PlanStartedEvent
   | PlanCompletedEvent;
 

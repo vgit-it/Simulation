@@ -61,6 +61,10 @@ export function resolvePlanStep(
   if (!step.intent) return { events, focus, screen };
 
   const ctx = assembleContext(session, state, { app: step.app });
-  const proposal = capabilityFor(step.intent).propose(ctx, step.ids ?? []);
+  const proposal = capabilityFor(step.intent).propose(
+    ctx,
+    step.ids ?? [],
+    step.payload,
+  );
   return { events, focus, screen, proposal };
 }

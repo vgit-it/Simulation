@@ -59,6 +59,8 @@ export interface PersonIntelligence {
   peopleInPhoto(photo: Photo): ResolvedPerson[];
   /** Draft who to share the given photos with, and a message to send. */
   draftShare(photos: Photo[]): ShareDraft;
+  /** Draft the text of a standalone message to the given recipients. */
+  draftMessage(recipients: ResolvedPerson[]): string;
   /** Proactive suggestions given the person's gallery and the current time. */
   suggestShares(photos: Photo[], now: Date): Suggestion[];
   /**

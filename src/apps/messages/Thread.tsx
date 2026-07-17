@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { type Thread as ThreadData } from '../../state';
-import { AppHeader, EXIT, OverlayLayer, useMountTransition } from '../../ui';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { commit, propose } from '../../actions';
+import { assembleContext } from '../../context';
+import { useSession } from '../../session';
+import { useStore, type Thread as ThreadData } from '../../state';
+import { AppHeader, EXIT, OverlayLayer, PillButton, useMountTransition } from '../../ui';
 import { resolveAsset, resolvePerson, type Photo } from '../../world';
 
 function timeLabel(at: number): string {
@@ -26,9 +29,26 @@ interface ThreadProps {
  * open a lightbox on tap.
  */
 export function Thread({ thread, ownerId, onBack }: ThreadProps) {
+  const { session } = useSession();
+  const { state, dispatch } = useStore();
+  const [draft, setDraft] = useState('');
   const title = thread.participantIds
     .map((id) => resolvePerson(ownerId, id).name)
     .join(', ');
+
+  // Replying is the same send-message capability the assistant plans with —
+  // committed directly (no approval sheet) because the user typed it themselves.
+  function onReply(e: FormEvent) {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    const ctx = assembleContext(session, state, { app: 'messages' });
+    commit(
+      propose('send-message', ctx, thread.participantIds, { text }),
+      dispatch,
+    );
+    setDraft('');
+  }
 
   const [zoom, setZoom] = useState<Photo | null>(null);
   const lightbox = useMountTransition(zoom !== null, EXIT.fade);
@@ -109,6 +129,21 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
         })}
         <div ref={bottomRef} />
       </div>
+
+      <form
+        onSubmit={onReply}
+        className="flex gap-space-sm border-t border-text/5 bg-surface/95 px-space-lg py-space-md backdrop-blur"
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message..."
+          className="type-body-sm min-w-0 flex-1 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
+        />
+        <PillButton variant="accent" disabled={!draft.trim()} className="shrink-0">
+          Send
+        </PillButton>
+      </form>
 
       {/* Lightbox: tap a thumbnail to view it full-screen; tap anywhere to close. */}
       {lightbox.mounted && shownZoom && (

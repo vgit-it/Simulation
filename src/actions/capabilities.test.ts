@@ -51,6 +51,55 @@ describe('capability registry', () => {
   });
 });
 
+describe('send-message capability', () => {
+  it('drafts a message to the given people via the brain', () => {
+    const ctx = assembleContext(session, freshState());
+    const proposal = capabilityFor('send-message').propose(ctx, ['sam-ruiz']);
+    expect(proposal.recipients.map((r) => r.id)).toEqual(['sam-ruiz']);
+    expect(proposal.message.length).toBeGreaterThan(0);
+    expect(proposal.invalidReason).toBeUndefined();
+    const sent = proposal.events.find((e) => e.type === 'MessageSent');
+    expect(sent).toMatchObject({ to: ['sam-ruiz'], intent: 'send-message' });
+  });
+
+  it('uses payload text verbatim when provided', () => {
+    const ctx = assembleContext(session, freshState());
+    const proposal = capabilityFor('send-message').propose(ctx, ['sam-ruiz'], {
+      text: 'See you at 6!',
+    });
+    expect(proposal.message).toBe('See you at 6!');
+  });
+
+  it('is invalid with no recipients', () => {
+    const ctx = assembleContext(session, freshState());
+    const proposal = capabilityFor('send-message').propose(ctx, []);
+    expect(proposal.invalidReason).toBeDefined();
+  });
+});
+
+describe('create-reminder capability', () => {
+  it('creates a reminder from a payload title, valid without recipients', () => {
+    const ctx = assembleContext(session, freshState());
+    const proposal = capabilityFor('create-reminder').propose(ctx, ['img-001'], {
+      title: 'Print the picnic photo',
+    });
+    expect(proposal.recipients).toEqual([]);
+    expect(proposal.invalidReason).toBeUndefined();
+    expect(proposal.confirmLabel).toBe('Add');
+    const created = proposal.events.find((e) => e.type === 'ReminderCreated');
+    expect(created).toMatchObject({
+      title: 'Print the picnic photo',
+      related: ['img-001'],
+    });
+  });
+
+  it('is invalid without a title', () => {
+    const ctx = assembleContext(session, freshState());
+    const proposal = capabilityFor('create-reminder').propose(ctx, []);
+    expect(proposal.invalidReason).toBeDefined();
+  });
+});
+
 describe('viableCapabilities', () => {
   it('excludes selection-requiring capabilities when nothing is selected', () => {
     const ctx = assembleContext(session, freshState());
@@ -66,6 +115,27 @@ describe('viableCapabilities', () => {
     );
     expect(viableCapabilities(ctx).map((c) => c.intent)).toContain(
       'share-photos',
+    );
+  });
+
+  it('includes send-message only with a people selection', () => {
+    const none = assembleContext(session, freshState());
+    expect(viableCapabilities(none).map((c) => c.intent)).not.toContain(
+      'send-message',
+    );
+    const withPeople = assembleContext(
+      { ...session, selection: { app: 'contacts', kind: 'people', ids: ['sam-ruiz'] } },
+      freshState(),
+    );
+    expect(viableCapabilities(withPeople).map((c) => c.intent)).toContain(
+      'send-message',
+    );
+  });
+
+  it('always includes create-reminder when the app is installed (no selection needed)', () => {
+    const ctx = assembleContext(session, freshState());
+    expect(viableCapabilities(ctx).map((c) => c.intent)).toContain(
+      'create-reminder',
     );
   });
 
@@ -102,10 +172,10 @@ describe('context folds the session selection into the situation', () => {
     expect(ctx.situation.app).toBe('messages');
   });
 
-  it('propose() by Photo[] still routes through the registry', () => {
+  it('propose() by ids routes through the registry', () => {
     const ctx = assembleContext(session, freshState());
     const [first] = ctx.owner.gallery;
-    const proposal = propose('share-photos', ctx, [first]);
+    const proposal = propose('share-photos', ctx, [first.id]);
     expect(proposal.attachments).toEqual([first.id]);
   });
 });
