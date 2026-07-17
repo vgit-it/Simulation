@@ -10,8 +10,10 @@ import type {
 
 export type { World, LoadedPerson };
 export type {
+  AppAction,
   AppDefinition,
   Contact,
+  SelectionSpec,
   DesignSystem,
   Device,
   Scenario,

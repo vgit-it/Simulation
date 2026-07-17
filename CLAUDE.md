@@ -139,13 +139,14 @@ src/
     selectors.ts               # selectNow, messagesFrom/Involving, inboxThreads, ...
     persistence.ts             # localStorage load/save/clear of the log
     store.tsx                  # StoreProvider, useStore, useNow
-  session/                     # POV: which person+device is embodied + person/device switch
+  session/                     # POV: embodied person+device + the live on-screen Selection
   intelligence/                # IntelligenceProvider.for(personId) -> person brain
     types.ts                   # the adapter contract (PersonIntelligence)
     mock.ts                    # deterministic implementation
     index.ts                   # provider selection + intelligenceFor(personId)
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
+    capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
   assistant/                   # persistent assistant: suggestions + activity feed
   scenarios/                   # scenario playback: pure step runner + ScenarioBar UI
     runner.ts                  # resolveStep(step, state) -> events/focus/screen (pure)
@@ -223,11 +224,25 @@ that aren't real people, but the seed doesn't rely on it.)
 (`src/intelligence/mock.ts`), and call it via `intelligenceFor(personId)`. Never
 bypass the interface.
 
-**Add an action/intent:** add an event to `SimEvent` (`src/state/events.ts`) +
-handle it in the reducer if it changes derived state; add a `propose<Intent>`
-builder and a `case` in `propose()` (`src/actions/index.ts`); render its
-`Proposal` (reuse `ProposalSheet`) and call `commit` on confirm. This one path
-powers both the assistant and scenarios.
+**Add an action/intent:** declare it in the owning app's `actions:` frontmatter
+(`world/apps/<app>.md` — id, label, and an optional `selection: {kind, min}`
+saying what must be selected for it to apply), then register a matching
+`propose` implementation in `src/actions/capabilities.ts` (one entry in
+`implementations`). The registry is built by joining the two at load and fails
+loudly on any mismatch (declared-but-unimplemented or implemented-but-
+undeclared). Add an event to `SimEvent` (`src/state/events.ts`) + reducer
+handling if it changes derived state; render its `Proposal` (reuse
+`ProposalSheet`) and call `commit` on confirm. This one path powers the
+assistant, scenarios, and (next) runtime plans. `viableCapabilities(ctx)` is
+the decider-facing view: the capabilities usable right now, filtered by the
+embodied device's installed apps and the current selection.
+
+**Expose a user selection to the assistant:** apps write what the user has
+picked to the session (`setSelection({ app, kind, ids })`, `src/session`);
+`assembleContext` folds it into `ContextBundle.situation.selection`
+automatically, so any decider sees "what's selected" without callers plumbing
+ids. Selection clears on person/device switch and when the app unmounts; pass
+an explicit `selection: null` in a `Situation` to override it for one call.
 
 **Add an assistant suggestion:** extend `suggestShares` (or a sibling method) on
 the brain (`src/intelligence/mock.ts`) to return `Suggestion`s; the assistant
@@ -395,6 +410,32 @@ via claude.ai login/subscription rate limits, only an API key. Deferred:
 wiring a real model behind `LLMIntelligence.respond` (needs the key +
 proxy-hosting decisions below), persisting chat history to the event log,
 letting a reply spawn a `Proposal` the way suggestions do.
+
+### Agent harness I — selection + capability registry ✅ (current, pre-M5)
+
+The first two pieces of the "select things, then tell the assistant what to do"
+loop, building toward runtime plans:
+
+- **Selection is session state** (`Selection { app, kind, ids }`,
+  `src/session`): apps write what the user has picked (Photos' multi-select is
+  wired), `assembleContext` folds it into `situation.selection`, and it clears
+  on person/device switch or app close. This is the bridge from a direct
+  manipulation ("tap three photos") to an assistant command ("share *these*").
+- **The capability registry** (`src/actions/capabilities.ts`): app `actions:`
+  frontmatter is now machine-read, not documentation. Each declared action
+  (id, label, `selection: {kind, min}` requirement) is joined with a `propose`
+  implementation at load — mismatches throw with the file path.
+  `propose()` routes through it (the old switch is gone), and
+  `viableCapabilities(ctx)` enumerates what's usable right now (app installed
+  on the embodied device + selection satisfied) — the action space a decider
+  chooses from.
+
+Next in the harness (before/alongside M5): `brain.plan(ctx, request)` — decompose
+a free-form request into steps over the capability registry; a shared step
+executor generalizing `scenarios/runner.ts` so a runtime plan and an authored
+scenario execute through one path; `PlanSheet`/progress UI so each cross-app
+step is visible and approvable; `ChatReply` gaining `proposal?`/`plan?` so the
+assistant chat can act, not just describe.
 
 ### M5 — Real LLM provider
 

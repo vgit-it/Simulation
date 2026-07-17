@@ -6,11 +6,20 @@ import { z } from 'zod';
  * than silently mis-rendering.
  */
 
+/** What an action needs selected to be applicable (e.g. ≥1 photo). */
+export const selectionSpecSchema = z.object({
+  kind: z.string(),
+  min: z.number().int().min(0).default(1),
+});
+export type SelectionSpec = z.infer<typeof selectionSpecSchema>;
+
 export const appActionSchema = z.object({
   id: z.string(),
   label: z.string(),
   intelligence: z.string().optional(),
+  selection: selectionSpecSchema.optional(),
 });
+export type AppAction = z.infer<typeof appActionSchema>;
 
 export const appDefinitionSchema = z.object({
   id: z.string(),
