@@ -23,6 +23,8 @@ interface SessionValue {
   session: Session;
   /** Switch to another device belonging to the current person. */
   setDevice: (deviceId: string) => void;
+  /** Embody a different person, landing on their first device. */
+  setPerson: (personId: string) => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -37,7 +39,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSession((s) => ({ ...s, deviceId }));
   }, []);
 
-  const value = useMemo(() => ({ session, setDevice }), [session, setDevice]);
+  const setPerson = useCallback((personId: string) => {
+    const device = getPerson(personId).devices[0];
+    if (!device) throw new Error(`Person "${personId}" has no device to embody`);
+    setSession({ personId, deviceId: device.id });
+  }, []);
+
+  const value = useMemo(
+    () => ({ session, setDevice, setPerson }),
+    [session, setDevice, setPerson],
+  );
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
   );

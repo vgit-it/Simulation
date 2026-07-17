@@ -98,16 +98,16 @@ npm run typecheck  # types only
 
 ```
 world/                         # CONTENT — authored, no code
-  apps/<app>.md                # app definition (frontmatter: capabilities/actions)
-  people/<person>/
+  apps/<app>.md                # app definitions: photos, messages, contacts
+  people/<person>/             # six residents (ava, sam, maya, leo, nadia, theo)
     profile.md                 # id, name, avatar, traits, behaviors
-    contacts.md                # contacts (name/avatar records)
+    contacts.md                # (optional; contacts are now derived — see below)
     devices/<device>.md        # type, name, theme, installed apps[]
     files/
       gallery/<id>.svg         # placeholder image
       gallery/<id>.yaml        # metadata sidecar: date, location, people[], tags[]
       documents/               # (reserved)
-  themes/<theme>.md            # visual identity tokens (colors, radii, font)
+  themes/<theme>.md            # visual identity tokens; one per resident
   scenarios/                   # (reserved for M4)
 src/
   config.ts                    # SIM_START, HERO_PERSON/DEVICE, provider choice
@@ -115,14 +115,14 @@ src/
     frontmatter.ts             # browser-safe frontmatter/YAML parsing
     schema.ts                  # zod schemas + inferred types
     loader.ts                  # import.meta.glob discovery + integrity check -> World
-    index.ts                   # World selectors (getPerson/getDevice/resolvePerson/...)
+    index.ts                   # World selectors (getPerson/resolvePerson/contactsOf/resolveAsset/...)
   state/                       # runtime state: event log, reducer, store (mutable)
     events.ts                  # SimEvent union (MessageSent, FactRecorded, ...)
     reducer.ts                 # apply/reduce/hydrate + RuntimeState
-    selectors.ts               # selectNow, messagesFrom, factsFor, ...
+    selectors.ts               # selectNow, messagesFrom/Involving, inboxThreads, ...
     persistence.ts             # localStorage load/save/clear of the log
     store.tsx                  # StoreProvider, useStore, useNow
-  session/                     # POV: which person+device is embodied (hero) + switch
+  session/                     # POV: which person+device is embodied + person/device switch
   intelligence/                # IntelligenceProvider.for(personId) -> person brain
     types.ts                   # the adapter contract (PersonIntelligence)
     mock.ts                    # deterministic implementation
@@ -136,7 +136,9 @@ src/
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
     photos/                    # the Photos app (gallery + detail + share)
-  App.tsx                      # stage: providers + hero device + dev bar
+    messages/                  # inbox of threads (MessagesApp) + Thread view
+    contacts/                  # read-only derived contacts graph (ContactsApp)
+  App.tsx                      # stage: providers + embodied device + dev bar
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
 ```
@@ -158,12 +160,21 @@ events back into the store.
 **Restyle a device:** edit the tokens in the device's theme file
 (`world/themes/*.md`). No code changes.
 
-**Add a person:** create `world/people/<id>/profile.md` (+ optional
-`contacts.md`, `devices/`, `files/`). Ids are kebab-case and must match the
-folder name.
+**Add a person:** create `world/people/<id>/profile.md` (+ `devices/`, `files/`).
+Ids are kebab-case and must match the folder name. Give them a device
+(`devices/phone.md` with a `theme` + `apps:`) so they're embodiable via the POV
+switcher (dev bar). Their **contacts appear automatically** from the photo graph
+(see below) — put them in a photo with someone and the connection exists both
+ways.
 
 **Add a device to a person:** add `world/people/<id>/devices/<device>.md` with a
 `theme` and an `apps: [...]` list.
+
+**Contacts are derived, not authored:** `contactsOf(personId)` (`src/world`)
+returns every real person that co-appears in that person's gallery. There is no
+per-person contact list to maintain — the graph is a fact of the content. (An
+authored `contacts.md` is still supported as a fallback label source for ids
+that aren't real people, but the seed doesn't rely on it.)
 
 **Add a new app:**
 1. Author `world/apps/<app>.md` (frontmatter: `id`, `name`, `icon`, `category`,
@@ -188,6 +199,12 @@ powers both the assistant and scenarios.
 the brain (`src/intelligence/mock.ts`) to return `Suggestion`s; the assistant
 (`src/assistant/Assistant.tsx`) renders them and turns a tap into
 `propose(intent, ctx, …)`. Suggestions are proactive pre-proposals, nothing more.
+
+**Show received messages:** the event log is global, so a person's inbox is just
+a filter over it — `messagesInvolving(state, personId)` and `inboxThreads(state,
+personId)` (`src/state/selectors.ts`). Nothing needs to "deliver" a message to a
+recipient; embody them (POV switch) and the Messages app folds the same log from
+their point of view. Attachments render via `resolveAsset(senderId, assetId)`.
 
 **Read/track runtime data:** read via selectors (`src/state/selectors.ts`) and a
 `useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
@@ -250,7 +267,7 @@ The architectural spine that makes the later milestones cheap:
 - **Clock** routed through the store (`useNow`); load-time **integrity check**;
   **vitest** harness; **dev bar** (sim time / device switch / reset).
 
-### M2 — Assistant surface ✅ (current)
+### M2 — Assistant surface ✅
 
 A persistent assistant (floating ✨, pinned via the `DeviceFrame` overlay slot,
 available from any unlocked screen). It offers proactive **suggestions** from the
@@ -260,19 +277,35 @@ running **activity feed** of sent items (read from the persisted event log).
 Photos gained a **multi-select** mode that shares many photos in one proposal.
 All built on the M1.5 pipeline — new UI + one brain method, no new plumbing.
 
-### M3 — Multiple people + contacts graph (next)
+### M3 — Multiple people + contacts graph ✅ (current)
 
-Several seed people, each with their own device(s). Photo `people:` resolve to
-real people in the world (not just lightweight contacts), enabling cross-person
-references and laying groundwork for scenarios. Natural follow-ons deferred from
-M2: an inbox/thread view (not just the assistant's flat feed) and recipients
-actually "receiving" shares on their own devices.
+A multi-person world: six residents (Ava + Sam, Maya, Leo, plus new residents
+Nadia and Theo), each a full person with their own themed phone and gallery.
+Photo `people:` resolve to **real people** in the world, and a person's
+**contacts are derived** from that graph (`contactsOf` — everyone you co-appear
+with), not an authored list. The **POV switcher** (dev bar) embodies any
+resident — "picking up their phone" (re-themes + starts locked). Two new
+content-driven apps close the loop from M2:
+- **Messages** (`src/apps/messages`): an inbox of threads derived from the
+  global event log (`inboxThreads`), so a share Ava sends **arrives** in the
+  recipient's inbox the moment you embody them — thread view renders the message
+  and photo thumbnails (resolved from the sender's gallery via `resolveAsset`).
+- **Contacts** (`src/apps/contacts`): a read-only view of the derived people
+  graph with shared-photo counts.
 
-### M4 — Scenarios
+All on the M1.5 substrate — new content + two app renderers + a few pure
+selectors (`messagesInvolving`, `inboxThreads`, `contactsOf`), no new plumbing.
+Deferred: replying from the inbox, message-based (runtime) contacts, global
+asset ids (Photo→Asset), scenarios (M4).
+
+### M4 — Scenarios (next)
 
 `world/scenarios/*` describe sequences of interactions across people/devices; a
 runner plays them and visualizes each device's screen state. Useful for demoing
-"how things would happen" without manual clicking.
+"how things would happen" without manual clicking. The pieces are in place: a
+global event log, multiple embodiable people, and the propose/commit pipeline —
+a scenario is a scripted sequence of `propose/commit` calls with `ClockSet`
+events between them.
 
 ### M5 — Real LLM provider
 
