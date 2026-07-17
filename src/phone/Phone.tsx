@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { getApp, getDevice, getPerson, getTheme } from '../world';
 import { themeToCssVars } from '../theme';
 import { useSession } from '../session';
@@ -10,14 +10,26 @@ import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
 
+export type Screen =
+  | { kind: 'locked' }
+  | { kind: 'home' }
+  | { kind: 'app'; appId: string };
+
+interface PhoneProps {
+  screen: Screen;
+  onScreenChange: (screen: Screen) => void;
+}
+
 /**
- * Orchestrates the embodied device: theme + lock/home/app state.
+ * Orchestrates the embodied device: theme + the lock/home/app display. The
+ * screen state itself is lifted to the stage (App) so a human tap, DevBar, and
+ * the scenario player all drive it the same way.
  *
- * Screens are layered like a real phone OS — home is the always-rendered base,
- * apps zoom in above it, and the lock screen covers everything — so each
+ * Screens render layered like a real phone OS — home is the always-rendered
+ * base, apps zoom in above it, and the lock screen covers everything — so each
  * transition (unlock reveal, app open/close) is an animation on one layer.
  */
-export function Phone() {
+export function Phone({ screen, onScreenChange }: PhoneProps) {
   const { session } = useSession();
   const { state, dispatch } = useStore();
   const owner = useMemo(() => getPerson(session.personId), [session.personId]);
@@ -30,8 +42,8 @@ export function Phone() {
     [device.theme],
   );
 
-  const [locked, setLocked] = useState(true);
-  const [appId, setAppId] = useState<string | null>(null);
+  const locked = screen.kind === 'locked';
+  const appId = screen.kind === 'app' ? screen.appId : null;
   const lock = useMountTransition(locked, EXIT.lock);
   const app = useMountTransition(appId !== null, EXIT.app);
   // Keeps the app renderer on screen while its close animation plays.
@@ -40,12 +52,7 @@ export function Phone() {
   // The lock screen fades in only when re-locking — on boot (or POV switch) it
   // should simply be there, not cross-fade over home.
   const hasUnlocked = useRef(false);
-
-  // Embodying a different person is "picking up their phone": start from the
-  // lock screen so the POV switch reads clearly.
   useEffect(() => {
-    setLocked(true);
-    setAppId(null);
     hasUnlocked.current = false;
   }, [session.personId]);
 
@@ -56,12 +63,7 @@ export function Phone() {
       person: session.personId,
       appId: id,
     });
-    setAppId(id);
-  }
-
-  function lockPhone() {
-    setLocked(true);
-    setAppId(null);
+    onScreenChange({ kind: 'app', appId: id });
   }
 
   const shownAppId = appId ?? lastAppId.current;
@@ -76,7 +78,7 @@ export function Phone() {
         owner={owner}
         device={device}
         onOpenApp={openApp}
-        onLock={lockPhone}
+        onLock={() => onScreenChange({ kind: 'locked' })}
       />
 
       {/* App layer: zooms in over home, scales back down on close. No z-index
@@ -92,7 +94,7 @@ export function Phone() {
             appId={shownAppId}
             ownerId={session.personId}
             deviceId={session.deviceId}
-            onClose={() => setAppId(null)}
+            onClose={() => onScreenChange({ kind: 'home' })}
           />
         </div>
       )}
@@ -112,7 +114,7 @@ export function Phone() {
             owner={owner}
             onUnlock={() => {
               hasUnlocked.current = true;
-              setLocked(false);
+              onScreenChange({ kind: 'home' });
             }}
           />
         </div>
