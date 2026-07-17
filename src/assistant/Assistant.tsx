@@ -1,18 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { propose, type Proposal } from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
-import { intelligenceFor, type Suggestion } from '../intelligence';
+import { intelligenceFor, type ChatTurn, type Suggestion } from '../intelligence';
 import { useSession } from '../session';
 import { messagesFrom, useNow, useStore } from '../state';
-import { Sheet } from '../ui';
+import { PillButton, Sheet } from '../ui';
 import { getPerson, resolvePerson } from '../world';
 
 /**
  * The persistent assistant: a floating button that opens a sheet of proactive
- * suggestions (one tap -> a Proposal you approve) plus a running activity feed of
- * what's been sent. Built entirely on the M1.5 pipeline — new UI, no new plumbing
- * beyond the brain's `suggestShares`.
+ * suggestions (one tap -> a Proposal you approve), an open-ended chat, and a
+ * running activity feed of what's been sent. Built entirely on the M1.5
+ * pipeline — new UI, no new plumbing beyond the brain's `suggestShares` and
+ * `respond` methods.
  */
 export function Assistant() {
   const { session } = useSession();
@@ -20,6 +21,8 @@ export function Assistant() {
   const now = useNow();
   const [open, setOpen] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
+  const [chatInput, setChatInput] = useState('');
 
   const owner = getPerson(session.personId);
   const suggestions = useMemo(
@@ -33,6 +36,20 @@ export function Assistant() {
       photoIds: s.photos.map((p) => p.id),
     });
     setProposal(propose(s.intent, ctx, s.photos));
+  }
+
+  function onChatSubmit(e: FormEvent) {
+    e.preventDefault();
+    const message = chatInput.trim();
+    if (!message) return;
+    const ctx = assembleContext(session, state, {});
+    const reply = intelligenceFor(session.personId).respond(ctx, chatHistory, message);
+    setChatHistory((h) => [
+      ...h,
+      { role: 'user', text: message },
+      { role: 'assistant', text: reply.text },
+    ]);
+    setChatInput('');
   }
 
   return (
@@ -100,6 +117,47 @@ export function Assistant() {
             ))}
           </div>
         )}
+
+        <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
+          Ask
+        </h3>
+        {chatHistory.length > 0 && (
+          <div className="mb-2 flex flex-col gap-2">
+            {chatHistory.map((turn, i) => (
+              <div
+                key={i}
+                className={`flex animate-rise flex-col ${
+                  turn.role === 'user' ? 'items-end' : 'items-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                    turn.role === 'user'
+                      ? 'rounded-br-md bg-accent text-white'
+                      : 'rounded-bl-md bg-bg/60 text-text ring-1 ring-text/5'
+                  }`}
+                >
+                  {turn.text}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={onChatSubmit} className="flex gap-2">
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Ask the assistant..."
+            className="min-w-0 flex-1 rounded-full bg-bg/60 px-4 py-2 text-sm text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
+          />
+          <PillButton
+            variant="accent"
+            disabled={!chatInput.trim()}
+            className="shrink-0"
+          >
+            Send
+          </PillButton>
+        </form>
 
         <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
           Recent activity

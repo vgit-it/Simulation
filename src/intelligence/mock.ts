@@ -1,5 +1,8 @@
-import { resolvePerson, type Photo } from '../world';
+import type { ContextBundle } from '../context';
+import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
 import type {
+  ChatReply,
+  ChatTurn,
   IntelligenceProvider,
   PersonIntelligence,
   PhotoGroup,
@@ -105,6 +108,44 @@ class MockPersonIntelligence implements PersonIntelligence {
     }
 
     return suggestions;
+  }
+
+  respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply {
+    const lower = message.toLowerCase();
+    const greeting = history.length === 0 ? 'Hi! ' : '';
+
+    if (lower.includes('share') || lower.includes('photo')) {
+      const [top] = this.suggestShares(ctx.owner.gallery, ctx.now);
+      if (!top) {
+        return {
+          text: `${greeting}Nothing new to share right now — check back after your next photo.`,
+        };
+      }
+      const sentences = [
+        `${top.title}.`,
+        top.subtitle ? `${top.subtitle}.` : '',
+        'Want me to draft it?',
+      ].filter(Boolean);
+      return { text: `${greeting}${sentences.join(' ')}` };
+    }
+
+    const contact = contactsOf(ctx.owner.id).find(
+      (c) =>
+        lower.includes(c.name.toLowerCase()) ||
+        lower.includes(c.name.split(' ')[0].toLowerCase()),
+    );
+    if (contact) {
+      const count = sharedPhotoCount(ctx.owner.id, contact.id);
+      return {
+        text: count
+          ? `${greeting}You've been in ${count} photo${count === 1 ? '' : 's'} together with ${contact.name}.`
+          : `${greeting}I don't see any photos of you with ${contact.name} yet.`,
+      };
+    }
+
+    return {
+      text: `${greeting}I'm a scripted assistant for now — ask me about sharing this week's photos, or who you've been photographed with.`,
+    };
   }
 }
 

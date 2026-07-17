@@ -3,6 +3,8 @@ import { MockIntelligence } from './mock';
 import type { IntelligenceProvider, PersonIntelligence } from './types';
 
 export type {
+  ChatReply,
+  ChatTurn,
   IntelligenceProvider,
   PersonIntelligence,
   PhotoGroup,
