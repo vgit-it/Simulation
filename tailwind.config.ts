@@ -17,9 +17,27 @@ export default {
       borderRadius: {
         screen: 'var(--sim-radius-screen)',
         card: 'var(--sim-radius-card)',
+        // Shape scale from the OS design language (world/design/DESIGN.md).
+        'ds-xs': 'var(--rounded-xs)',
+        'ds-sm': 'var(--rounded-sm)',
+        'ds-md': 'var(--rounded-md)',
+        'ds-lg': 'var(--rounded-lg)',
+        'ds-full': 'var(--rounded-full)',
       },
       fontFamily: {
         sim: 'var(--sim-font)',
+        brand: 'var(--font-brand)',
+        plain: 'var(--font-plain)',
+      },
+      // Spacing scale from the OS design language (world/design/DESIGN.md);
+      // usable anywhere Tailwind takes a spacing value (p-, gap-, m-, ...).
+      spacing: {
+        'space-xs': 'var(--space-xs)',
+        'space-sm': 'var(--space-sm)',
+        'space-md': 'var(--space-md)',
+        'space-lg': 'var(--space-lg)',
+        'space-xl': 'var(--space-xl)',
+        'space-2xl': 'var(--space-2xl)',
       },
       // Motion is OS behavior, deliberately engine-level and uniform across
       // themes; per-person identity stays in world/themes tokens.

@@ -29,24 +29,27 @@ export function LockScreen({ owner, onUnlock }: LockScreenProps) {
       aria-label="Unlock phone"
     >
       <div className="mt-10 flex flex-col items-center">
-        <p className="animate-fade-in text-sm text-muted" style={{ animationDelay: '100ms' }}>
+        <p
+          className="type-label animate-fade-in text-muted"
+          style={{ animationDelay: '100ms' }}
+        >
           {longDate(now)}
         </p>
-        <p className="animate-rise mt-1 text-7xl font-semibold tracking-tight tabular-nums">
+        <p className="type-display animate-rise mt-1 tabular-nums">
           {bigTime(now)}
         </p>
       </div>
 
       <div
-        className="flex animate-rise flex-col items-center gap-2"
+        className="flex animate-rise flex-col items-center gap-space-sm"
         style={{ animationDelay: '150ms' }}
       >
         <span className="text-4xl">{owner.avatar}</span>
-        <span className="text-sm text-muted">{owner.name}</span>
+        <span className="type-body-sm text-muted">{owner.name}</span>
       </div>
 
-      <div className="mb-2 flex flex-col items-center gap-3">
-        <span className="text-xs uppercase tracking-widest text-muted motion-safe:animate-breathe">
+      <div className="mb-2 flex flex-col items-center gap-space-md">
+        <span className="type-caption text-muted motion-safe:animate-breathe">
           Tap to unlock
         </span>
         <span className="h-1 w-28 rounded-full bg-text/40" />

@@ -39,7 +39,7 @@ export function Sheet({
           }`}
         />
         <div
-          className={`relative overflow-y-auto rounded-t-3xl bg-surface p-5 pb-8 shadow-sheet ${maxHeightClass} ${
+          className={`relative overflow-y-auto rounded-t-ds-lg bg-surface p-space-xl pb-space-2xl shadow-sheet ${maxHeightClass} ${
             closing ? 'animate-slide-down' : 'animate-slide-up'
           }`}
         >

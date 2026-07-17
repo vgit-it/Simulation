@@ -81,8 +81,17 @@ contacts, photos, etc.).
   (uniform OS behavior in `tailwind.config.ts`); per-person identity stays in
   theme tokens. All animation is presentation-only (timeouts never feed sim
   state) and collapses under `prefers-reduced-motion`.
-- **Inter** is self-hosted via `@fontsource-variable/inter` (bundled at build
-  time — no runtime network, works offline).
+- **Design system**: the OS look (type scale, spacing, shape) is authored
+  content in `world/design/DESIGN.md` — [DESIGN.md format](https://github.com/google-labs-code/design.md)
+  (YAML tokens + prose philosophy), following Google Sans typography
+  principles. Tokens flow file → zod schema → CSS variables → utilities
+  (`.type-*` role classes in `src/index.css`; `space-*`/`ds-*`
+  spacing/radius keys in `tailwind.config.ts`). Editing the file restyles the
+  OS; per-person identity (colors) stays in `world/themes/*.md`.
+- **Fonts** are self-hosted via `@fontsource-variable/*` (bundled at build
+  time — no runtime network, works offline): **Figtree** as the brand/display
+  face (an open stand-in for the proprietary Google Sans) and **Inter** as the
+  plain text face.
 - **zod** for content schemas, **js-yaml** for frontmatter + sidecars.
   - Note: we parse frontmatter with `js-yaml` directly (see
     `src/world/frontmatter.ts`) rather than `gray-matter`, which depends on
@@ -114,7 +123,8 @@ world/                         # CONTENT — authored, no code
       gallery/<id>.svg         # placeholder image
       gallery/<id>.yaml        # metadata sidecar: date, location, people[], tags[]
       documents/               # (reserved)
-  themes/<theme>.md            # visual identity tokens; one per resident
+  design/DESIGN.md             # the OS design language: type scale, spacing, shape + philosophy
+  themes/<theme>.md            # per-person visual identity tokens; one per resident
   scenarios/<scenario>.md      # scripted step sequences (clock/focus/share) — played by ScenarioBar
 src/
   config.ts                    # SIM_START, HERO_PERSON/DEVICE, provider choice
@@ -142,7 +152,7 @@ src/
     ScenarioBar.tsx             # out-of-phone player: pick/step/play a scenario
   ui/                          # shared primitives (Sheet, AppHeader, PillButton,
                                #   Avatar, EmptyState) + motion (useMountTransition)
-  theme/                       # theme tokens -> CSS variables
+  theme/                       # design-system + theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
     Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
   apps/                        # app registry + app renderers
@@ -170,8 +180,17 @@ events back into the store.
 **Add a photo:** drop `img-00N.svg` + `img-00N.yaml` into a person's
 `files/gallery/`. It appears automatically (loader joins them by basename).
 
+**Restyle the OS (every device):** edit `world/design/DESIGN.md` — type roles
+(display/headline/title/body/body-sm/label/caption), font stacks, the spacing
+scale, or the shape scale. Every value is schema-checked and flows to the UI
+as CSS variables; the prose sections document the philosophy behind the
+numbers. No code changes. (Role/scale *names* are the engine contract — adding
+a new role means also adding it to `src/world/schema.ts` and a `.type-*` class
+in `src/index.css`.)
+
 **Restyle a device:** edit the tokens in the device's theme file
-(`world/themes/*.md`). No code changes.
+(`world/themes/*.md`). Themes are the per-person layer (colors, radii, base
+font) over the shared OS design language. No code changes.
 
 **Add a person:** create `world/people/<id>/profile.md` (+ `devices/`, `files/`).
 Ids are kebab-case and must match the folder name. Give them a device
@@ -393,16 +412,19 @@ image generation for scenario output.
 
 ## Things to keep in mind for future work
 
-- The style/visual identity is meant to be author-defined via theme tokens and
-  (later) style guides — keep visual decisions in `world/themes/` and
-  `src/theme/`, not scattered in components.
+- The style/visual identity is author-defined: the shared OS language lives in
+  `world/design/DESIGN.md`, per-person identity in `world/themes/*.md` — keep
+  visual decisions in those files (flowing through `src/theme`), not scattered
+  in components. New UI should use the `.type-*` role classes and
+  `space-*`/`ds-*` tokens, never raw text-size/tracking/padding values.
 - When adding LLM calls (M5), preserve determinism as an option: the mock must
   remain a working, token-free provider so the world is always runnable offline.
 - **Deferred foundation seams** (noted so we build toward them, not around them):
   generalize `Photo` → a shared `Asset` shape (documents/avatars/wallpapers/
-  generated images) before M6 image generation; expand the theme schema toward a
-  full design-token set (typography/spacing/wallpaper) when the style-guide work
-  lands. Neither is built yet — don't over-invest early, but don't block them.
+  generated images) before M6 image generation. (The design-token seam landed
+  as `world/design/DESIGN.md` — typography/spacing/shape are OS-level tokens
+  there; a remaining sub-seam is per-theme wallpaper and theme-level type
+  overrides if a resident ever needs them.)
 - Keep new effects expressible as `SimEvent`s so scenarios can script them the
   same way `share` steps script `propose`/`commit` today — a scenario step
   should never need a parallel effect path from the one a human interaction

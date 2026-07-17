@@ -52,7 +52,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
         <AppHeader title={title} onBack={onBack} backLabel="Messages" />
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+      <div className="flex flex-1 flex-col gap-space-md overflow-y-auto px-space-lg py-space-lg">
         {thread.messages.map((m, i) => {
           const mine = m.from === ownerId;
           const sender = resolvePerson(ownerId, m.from);
@@ -65,15 +65,15 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
               style={{ animationDelay: `${Math.min(i, 10) * 20}ms` }}
             >
               {!mine && (
-                <span className="mb-0.5 ml-1 text-xs text-muted">
+                <span className="type-caption mb-0.5 ml-1 text-muted">
                   {sender.avatar} {sender.name}
                 </span>
               )}
               <div
-                className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${
+                className={`type-body max-w-[80%] rounded-ds-md px-3.5 py-2 ${
                   mine
-                    ? 'rounded-br-md bg-accent text-white'
-                    : 'rounded-bl-md bg-surface text-text'
+                    ? 'rounded-br-ds-xs bg-accent text-white'
+                    : 'rounded-bl-ds-xs bg-surface text-text'
                 }`}
               >
                 <p>{m.body}</p>
@@ -101,7 +101,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
                   </div>
                 )}
               </div>
-              <span className="mt-0.5 px-1 text-[10px] text-muted">
+              <span className="type-caption mt-0.5 px-1 text-muted">
                 {timeLabel(m.at)}
               </span>
             </div>
@@ -125,7 +125,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
               alt={shownZoom.location}
               className="max-h-[70%] w-full animate-scale-in rounded-card object-contain"
             />
-            <span className="animate-rise text-sm text-white/90">
+            <span className="type-body-sm animate-rise text-white/90">
               {shownZoom.location}
             </span>
           </button>

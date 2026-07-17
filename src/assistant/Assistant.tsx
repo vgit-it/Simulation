@@ -81,34 +81,34 @@ export function Assistant() {
         maxHeightClass="max-h-[85%]"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">✨ Assistant</h2>
+          <h2 className="type-title">✨ Assistant</h2>
           <button
             onClick={() => setOpen(false)}
-            className="rounded-full bg-text/10 px-3 py-1 text-xs text-muted transition duration-150 active:scale-95"
+            className="type-label rounded-ds-full bg-text/10 px-space-md py-1 text-muted transition duration-150 active:scale-95"
           >
             Close
           </button>
         </div>
 
-        <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
+        <h3 className="type-caption mb-space-sm mt-space-lg text-muted">
           Suggestions
         </h3>
         {suggestions.length === 0 ? (
-          <p className="text-sm text-muted">Nothing to suggest right now.</p>
+          <p className="type-body-sm text-muted">Nothing to suggest right now.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-space-sm">
             {suggestions.map((s, i) => (
               <button
                 key={s.id}
                 onClick={() => onSuggestion(s)}
-                className="flex animate-rise items-center gap-3 rounded-card bg-bg/60 p-3 text-left ring-1 ring-text/5 transition duration-150 active:scale-[0.98]"
+                className="flex animate-rise items-center gap-space-md rounded-card bg-bg/60 p-space-md text-left ring-1 ring-text/5 transition duration-150 active:scale-[0.98]"
                 style={{ animationDelay: `${i * 40}ms` }}
               >
                 <span className="text-xl">📷</span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">{s.title}</span>
+                  <span className="type-body block font-medium">{s.title}</span>
                   {s.subtitle && (
-                    <span className="block truncate text-xs text-muted">
+                    <span className="type-body-sm block truncate text-muted">
                       {s.subtitle}
                     </span>
                   )}
@@ -118,11 +118,9 @@ export function Assistant() {
           </div>
         )}
 
-        <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
-          Ask
-        </h3>
+        <h3 className="type-caption mb-space-sm mt-space-xl text-muted">Ask</h3>
         {chatHistory.length > 0 && (
-          <div className="mb-2 flex flex-col gap-2">
+          <div className="mb-space-sm flex flex-col gap-space-sm">
             {chatHistory.map((turn, i) => (
               <div
                 key={i}
@@ -131,10 +129,10 @@ export function Assistant() {
                 }`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                  className={`type-body max-w-[85%] rounded-ds-md px-3.5 py-2 ${
                     turn.role === 'user'
-                      ? 'rounded-br-md bg-accent text-white'
-                      : 'rounded-bl-md bg-bg/60 text-text ring-1 ring-text/5'
+                      ? 'rounded-br-ds-xs bg-accent text-white'
+                      : 'rounded-bl-ds-xs bg-bg/60 text-text ring-1 ring-text/5'
                   }`}
                 >
                   {turn.text}
@@ -143,12 +141,12 @@ export function Assistant() {
             ))}
           </div>
         )}
-        <form onSubmit={onChatSubmit} className="flex gap-2">
+        <form onSubmit={onChatSubmit} className="flex gap-space-sm">
           <input
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             placeholder="Ask the assistant..."
-            className="min-w-0 flex-1 rounded-full bg-bg/60 px-4 py-2 text-sm text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
+            className="type-body-sm min-w-0 flex-1 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
           />
           <PillButton
             variant="accent"
@@ -159,13 +157,13 @@ export function Assistant() {
           </PillButton>
         </form>
 
-        <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-muted">
+        <h3 className="type-caption mb-space-sm mt-space-xl text-muted">
           Recent activity
         </h3>
         {activity.length === 0 ? (
-          <p className="text-sm text-muted">No messages sent yet.</p>
+          <p className="type-body-sm text-muted">No messages sent yet.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-space-sm">
             {[...activity].reverse().map((m, i) => {
               const names = m.to
                 .map((id) => resolvePerson(session.personId, id).name)
@@ -173,13 +171,13 @@ export function Assistant() {
               return (
                 <div
                   key={m.id}
-                  className="animate-rise rounded-card bg-bg/60 p-3 ring-1 ring-text/5"
+                  className="animate-rise rounded-card bg-bg/60 p-space-md ring-1 ring-text/5"
                   style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                 >
-                  <p className="text-xs text-muted">To {names}</p>
-                  <p className="mt-0.5 text-sm">{m.body}</p>
+                  <p className="type-caption text-muted">To {names}</p>
+                  <p className="type-body-sm mt-0.5">{m.body}</p>
                   {m.attachments.length > 0 && (
-                    <p className="mt-1 text-xs text-accent">
+                    <p className="type-caption mt-1 text-accent">
                       📎 {m.attachments.length} photo
                       {m.attachments.length === 1 ? '' : 's'}
                     </p>

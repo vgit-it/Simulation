@@ -49,7 +49,7 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
         actions={<PillButton onClick={onClose}>Home</PillButton>}
       />
 
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
+      <div className="flex-1 overflow-y-auto px-space-sm pb-space-xl">
         {threads.length === 0 ? (
           <EmptyState
             icon="💬"
@@ -73,21 +73,21 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
                 <button
                   key={t.key}
                   onClick={() => setOpenKey(t.key)}
-                  className="flex animate-rise items-center gap-3 rounded-card px-3 py-3 text-left transition-colors duration-150 active:bg-text/5"
+                  className="flex animate-rise items-center gap-space-md rounded-card px-space-md py-space-md text-left transition-colors duration-150 active:bg-text/5"
                   style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
                 >
                   <Avatar emoji={people[0]?.avatar ?? '💬'} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-semibold">
+                    <span className="flex items-baseline justify-between gap-space-sm">
+                      <span className="type-body truncate font-medium">
                         {names}
                       </span>
-                      <span className="shrink-0 text-[10px] text-muted">
+                      <span className="type-caption shrink-0 text-muted">
                         {timeLabel(t.last.at)}
                       </span>
                     </span>
                     <span className="mt-0.5 flex items-center gap-1.5">
-                      <span className="min-w-0 truncate text-xs text-muted">
+                      <span className="type-body-sm min-w-0 truncate text-muted">
                         {outgoing ? 'You: ' : ''}
                         {t.last.body}
                       </span>
@@ -102,7 +102,7 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
                             />
                           ))}
                           {overflow > 0 && (
-                            <span className="text-[10px] text-muted">
+                            <span className="type-caption text-muted">
                               +{overflow}
                             </span>
                           )}

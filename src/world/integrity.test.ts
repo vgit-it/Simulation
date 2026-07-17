@@ -9,6 +9,7 @@ describe('world integrity', () => {
 
   it('flags a device referencing an unknown theme', () => {
     const broken: World = {
+      design: world.design,
       apps: { photos: world.apps.photos },
       themes: {},
       scenarios: {},
@@ -32,6 +33,7 @@ describe('world integrity', () => {
 
   it('flags a photo referencing an unknown person', () => {
     const broken: World = {
+      design: world.design,
       apps: {},
       themes: {},
       scenarios: {},

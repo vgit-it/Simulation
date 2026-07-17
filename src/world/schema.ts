@@ -69,6 +69,55 @@ export const themeSchema = z.object({
 });
 export type Theme = z.infer<typeof themeSchema>;
 
+/** One role of the type scale: a complete, self-contained text style. */
+export const typeRoleSchema = z.object({
+  fontFamily: z.string(), // may be a "{fonts.<id>}" reference, resolved on load
+  fontSize: z.string().regex(/^\d+(\.\d+)?(px|em|rem)$/),
+  fontWeight: z.number(),
+  lineHeight: z.number(),
+  letterSpacing: z.string().regex(/^-?\d*(\.\d+)?em$/),
+});
+export type TypeRole = z.infer<typeof typeRoleSchema>;
+
+const dimensionSchema = z.string().regex(/^\d+(\.\d+)?(px|em|rem)$/);
+
+/**
+ * The OS design language (world/design/DESIGN.md, DESIGN.md format): the
+ * typography/spacing/shape tokens every device shares. Role and scale names
+ * are fixed — they are the engine contract the UI's utility classes compile
+ * against — while every value is authored content.
+ */
+export const designSystemSchema = z.object({
+  name: z.string(),
+  description: z.string().default(''),
+  fonts: z.record(z.string()),
+  typography: z.object({
+    display: typeRoleSchema,
+    headline: typeRoleSchema,
+    title: typeRoleSchema,
+    body: typeRoleSchema,
+    'body-sm': typeRoleSchema,
+    label: typeRoleSchema,
+    caption: typeRoleSchema,
+  }),
+  spacing: z.object({
+    xs: dimensionSchema,
+    sm: dimensionSchema,
+    md: dimensionSchema,
+    lg: dimensionSchema,
+    xl: dimensionSchema,
+    '2xl': dimensionSchema,
+  }),
+  rounded: z.object({
+    xs: dimensionSchema,
+    sm: dimensionSchema,
+    md: dimensionSchema,
+    lg: dimensionSchema,
+    full: dimensionSchema,
+  }),
+});
+export type DesignSystem = z.infer<typeof designSystemSchema>;
+
 export const photoMetaSchema = z.object({
   date: z.coerce.date(),
   location: z.string().default(''),

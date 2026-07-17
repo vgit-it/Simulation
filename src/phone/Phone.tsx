@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { getApp, getDevice, getPerson, getTheme } from '../world';
-import { themeToCssVars } from '../theme';
+import { getApp, getDesignSystem, getDevice, getPerson, getTheme } from '../world';
+import { designToCssVars, themeToCssVars } from '../theme';
 import { useSession } from '../session';
 import { useStore } from '../state';
 import { appRegistry } from '../apps/registry';
@@ -37,8 +37,13 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
     () => getDevice(session.personId, session.deviceId),
     [session.personId, session.deviceId],
   );
+  // Design-system vars first, theme vars second: the shared OS language is the
+  // base layer and a person's theme wins any overlap.
   const themeVars = useMemo(
-    () => themeToCssVars(getTheme(device.theme)),
+    () => ({
+      ...designToCssVars(getDesignSystem()),
+      ...themeToCssVars(getTheme(device.theme)),
+    }),
     [device.theme],
   );
 
@@ -135,11 +140,11 @@ function AppLayer({ appId, ownerId, deviceId, onClose }: AppLayerProps) {
   const AppComponent = appRegistry[appId];
   if (!AppComponent) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-bg p-6 text-center">
-        <p className="text-muted">No renderer registered for “{app.name}”.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-space-md bg-bg p-space-xl text-center">
+        <p className="type-body text-muted">No renderer registered for “{app.name}”.</p>
         <button
           onClick={onClose}
-          className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition duration-150 active:scale-95"
+          className="type-label rounded-ds-full bg-accent px-space-lg py-2 text-white transition duration-150 active:scale-95"
         >
           Back
         </button>
