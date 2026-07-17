@@ -148,14 +148,21 @@ src/
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
   assistant/                   # persistent assistant: suggestions + activity feed
+  plans/                       # runtime plans: brain-generated cross-app step sequences
+    types.ts                   # Plan + PlanStep (navigate/gather vs action steps)
+    executor.ts                # resolvePlanStep + shared step primitives (also used by scenarios)
+    usePlanRunner.tsx          # drives a plan through the phone (POV + lifted screen), pausing on action steps
+    PlanSheet.tsx              # plan preview: approve the decomposition before it runs
+    PlanProgress.tsx           # live execution HUD (checklist, current step)
   scenarios/                   # scenario playback: pure step runner + ScenarioBar UI
-    runner.ts                  # resolveStep(step, state) -> events/focus/screen (pure)
+    runner.ts                  # resolveStep(step, state) -> events/focus/screen (reuses plans/executor primitives)
     ScenarioBar.tsx             # out-of-phone player: pick/step/play a scenario
   ui/                          # shared primitives (Sheet, AppHeader, PillButton,
                                #   Avatar, EmptyState) + motion (useMountTransition)
   theme/                       # design-system + theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
     Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
+    screen.tsx                 # ScreenProvider/useScreenControl: shares the lifted screen with the in-phone assistant
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
@@ -268,6 +275,23 @@ gallery photos). It appears in the `ScenarioBar` picker automatically — no cod
 turning one step into events + where to focus; `ScenarioBar` dispatches them
 and drives `session.setPerson`/`setDevice` + the lifted `Phone` screen, the
 same levers `DevBar` exposes to a human.
+
+**How runtime plans work (no authoring needed):** a plan is a scenario the
+brain writes on the fly. `brain.plan(ctx, request)`
+(`src/intelligence/mock.ts`) decomposes a free-form request into an ordered
+`Plan` of `PlanStep`s over the **capability registry** — navigate/gather steps
+(open an app so the user sees the context) and action steps (an `intent` + object
+`ids` that build a `Proposal` when reached). `respond()` returns a plan for an
+imperative request (advisory questions still get suggestions). `usePlanRunner`
+(`src/plans`) executes it through the **same levers** scenarios use —
+`resolvePlanStep` produces `{events, focus, screen, proposal?}`, sharing its
+primitives with `scenarios/runner.ts` — driving the phone app-by-app; action
+steps pause at a `ProposalSheet` for approval, navigate steps auto-advance.
+`PlanSheet` previews the decomposition first; `PlanProgress` narrates it live;
+`PlanStarted`/`PlanCompleted` events persist each run (`plansFor` selector). The
+assistant reaches the lifted phone screen via `useScreenControl`
+(`src/phone/screen.tsx`). Adding a capability (see "Add an action/intent") widens
+what plans can contain — no plan-engine edits.
 
 ## Content conventions
 
@@ -430,12 +454,36 @@ loop, building toward runtime plans:
   on the embodied device + selection satisfied) — the action space a decider
   chooses from.
 
-Next in the harness (before/alongside M5): `brain.plan(ctx, request)` — decompose
-a free-form request into steps over the capability registry; a shared step
-executor generalizing `scenarios/runner.ts` so a runtime plan and an authored
-scenario execute through one path; `PlanSheet`/progress UI so each cross-app
-step is visible and approvable; `ChatReply` gaining `proposal?`/`plan?` so the
-assistant chat can act, not just describe.
+### Agent harness II — runtime plans ✅ (current, pre-M5)
+
+The other half of the loop: the assistant now **plans and executes** a
+free-form request across apps, showing every step.
+
+- **`brain.plan(ctx, request)`** (`src/intelligence`): decomposes a request into
+  an ordered `Plan` of `PlanStep`s over the capability registry — navigate/gather
+  steps and action steps (an `intent` + object `ids`). It binds to the current
+  selection ("share *these*") or falls back to this week's shareable photos.
+  `ChatReply` gained `plan?`; `respond()` returns a plan for imperative requests,
+  suggestions for advisory questions.
+- **One execution path** (`src/plans/executor.ts`): `resolvePlanStep` and the
+  scenario `resolveStep` share their step primitives (`focusScreen`,
+  `appOpenedEvent`, the `propose`/`commit` capability path), so a planned step
+  and a scripted step take the exact same road. `usePlanRunner` drives the phone
+  through a plan using the same POV + lifted-screen levers `DevBar`/`ScenarioBar`
+  use — reached from the in-phone assistant via `useScreenControl`
+  (`src/phone/screen.tsx`). Action steps pause at a `ProposalSheet` for approval;
+  navigate steps auto-advance.
+- **Visible + persistent**: `PlanSheet` previews the decomposition (approve
+  before it runs), `PlanProgress` narrates it live (checklist + current step),
+  and `PlanStarted`/`PlanCompleted` events record each run (`plansFor`), so the
+  activity feed shows completed plans and they survive reload.
+
+This is the harness M5's real model plugs into unchanged: the LLM brain returns
+the same `Plan`/`ChatReply` shape (its tool/capability calls) and everything
+downstream — preview, execution, approval, persistence — already works.
+Deferred: `PlanStepCompleted` events (per-step persistence), branching/
+conditional plans, an "auto-approve" supervision level that commits action steps
+without pausing, plans that span multiple people's devices.
 
 ### M5 — Real LLM provider
 

@@ -1,23 +1,23 @@
 import { propose } from '../actions';
 import { assembleContext } from '../context';
-import type { Screen } from '../phone/Phone';
+import {
+  appOpenedEvent,
+  focusScreen,
+  type StepResult,
+} from '../plans/executor';
 import { getPerson, type ScenarioStep } from '../world';
 import type { RuntimeState, SimEvent } from '../state';
 
-/** What playing one scenario step produces: events to dispatch, and where to look. */
-export interface StepResult {
-  events: SimEvent[];
-  focus?: { personId: string; deviceId?: string };
-  screen?: Screen;
-}
+export type { StepResult };
 
-function focusScreen(screen: 'locked' | 'home' | { app: string }): Screen {
-  if (screen === 'locked') return { kind: 'locked' };
-  if (screen === 'home') return { kind: 'home' };
-  return { kind: 'app', appId: screen.app };
-}
-
-/** Resolve one scenario step against the current runtime state. Pure — no dispatch. */
+/**
+ * Resolve one scenario step against the current runtime state. Pure — no
+ * dispatch. Shares its step-resolution primitives (`focusScreen`,
+ * `appOpenedEvent`, the `propose` capability path) with runtime plans, so a
+ * scripted step and a planned step take the exact same road to an effect.
+ * Scenario `share` steps auto-commit (they inline the proposal's events),
+ * whereas a plan's action step surfaces the proposal for approval.
+ */
 export function resolveStep(step: ScenarioStep, state: RuntimeState): StepResult {
   switch (step.kind) {
     case 'clock':
@@ -29,14 +29,7 @@ export function resolveStep(step: ScenarioStep, state: RuntimeState): StepResult
       const screen = focusScreen(step.screen);
       const events: SimEvent[] =
         screen.kind === 'app'
-          ? [
-              {
-                type: 'AppOpened',
-                at: state.clock,
-                person: step.person,
-                appId: screen.appId,
-              },
-            ]
+          ? [appOpenedEvent(step.person, screen.appId, state.clock)]
           : [];
       return {
         events,

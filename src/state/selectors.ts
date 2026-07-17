@@ -1,4 +1,4 @@
-import type { Fact, Message, RuntimeState } from './reducer';
+import type { Fact, Message, PlanRun, RuntimeState } from './reducer';
 
 /** A conversation: all messages among the same set of participants. */
 export interface Thread {
@@ -74,4 +74,11 @@ export function messagesWithAttachment(
 
 export function factsFor(state: RuntimeState, personId: string): Fact[] {
   return state.facts[personId] ?? [];
+}
+
+/** Runtime plans a person has run (newest first). */
+export function plansFor(state: RuntimeState, personId: string): PlanRun[] {
+  return state.plans
+    .filter((p) => p.person === personId)
+    .sort((a, b) => b.at - a.at);
 }

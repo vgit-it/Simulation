@@ -42,11 +42,32 @@ export interface ClockSetEvent {
   to: number; // new sim epoch ms
 }
 
+/** The assistant began executing a runtime plan for a person. */
+export interface PlanStartedEvent {
+  type: 'PlanStarted';
+  at: number;
+  person: string;
+  planId: string;
+  goal: string;
+  steps: number;
+}
+
+/** A runtime plan finished executing (all steps done, or cancelled). */
+export interface PlanCompletedEvent {
+  type: 'PlanCompleted';
+  at: number;
+  person: string;
+  planId: string;
+  outcome: 'completed' | 'cancelled';
+}
+
 export type SimEvent =
   | MessageSentEvent
   | FactRecordedEvent
   | AppOpenedEvent
-  | ClockSetEvent;
+  | ClockSetEvent
+  | PlanStartedEvent
+  | PlanCompletedEvent;
 
 let counter = 0;
 /** Deterministic-ish unique id for events/proposals (stable within a session). */
