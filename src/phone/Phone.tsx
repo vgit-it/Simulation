@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getApp, getDevice, getPerson, getTheme } from '../world';
 import { themeToCssVars } from '../theme';
 import { useSession } from '../session';
@@ -28,6 +28,12 @@ export function Phone() {
     [device.theme],
   );
   const [screen, setScreen] = useState<Screen>({ kind: 'locked' });
+
+  // Embodying a different person is "picking up their phone": start from the
+  // lock screen so the POV switch reads clearly.
+  useEffect(() => {
+    setScreen({ kind: 'locked' });
+  }, [session.personId]);
 
   function openApp(appId: string) {
     dispatch({

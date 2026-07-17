@@ -1,9 +1,16 @@
 import { world, validateIntegrity, type LoadedPerson, type World } from './loader';
-import type { AppDefinition, Device, Theme } from './schema';
+import type { AppDefinition, Device, Photo, Theme } from './schema';
 
 export type { World, LoadedPerson };
 export type { AppDefinition, Contact, Device, Theme, Photo } from './schema';
 export { world, validateIntegrity };
+
+/** A person/contact resolved to the minimal fields the UI needs to render them. */
+export interface ResolvedPerson {
+  id: string;
+  name: string;
+  avatar: string;
+}
 
 export function getPerson(personId: string): LoadedPerson {
   const person = world.people[personId];
@@ -38,7 +45,7 @@ export function getTheme(themeId: string): Theme {
 export function resolvePerson(
   ownerId: string,
   personId: string,
-): { id: string; name: string; avatar: string } {
+): ResolvedPerson {
   if (world.people[personId]) {
     const p = world.people[personId];
     return { id: p.id, name: p.name, avatar: p.avatar };
@@ -46,4 +53,43 @@ export function resolvePerson(
   const contact = getPerson(ownerId).contacts.find((c) => c.id === personId);
   if (contact) return contact;
   return { id: personId, name: personId, avatar: '❓' };
+}
+
+/**
+ * The person's contact graph, derived from committed content: every real person
+ * in the world who co-appears in one of this person's gallery photos (excluding
+ * self), newest-connection first. Contacts are a fact about the world, not an
+ * authored list — drop a person into a photo and they become a contact, no code.
+ */
+export function contactsOf(personId: string): ResolvedPerson[] {
+  const owner = getPerson(personId);
+  const seen = new Set<string>();
+  const contacts: ResolvedPerson[] = [];
+  for (const photo of owner.gallery) {
+    for (const id of photo.people) {
+      if (id === personId || seen.has(id) || !world.people[id]) continue;
+      seen.add(id);
+      contacts.push(resolvePerson(personId, id));
+    }
+  }
+  return contacts;
+}
+
+/** How many of the owner's photos a given contact co-appears in. */
+export function sharedPhotoCount(ownerId: string, personId: string): number {
+  return getPerson(ownerId).gallery.filter((p) => p.people.includes(personId))
+    .length;
+}
+
+/**
+ * Resolve a shared asset id to the photo it refers to, within its owner's
+ * gallery. A share's attachments are owned by the sender, and photo ids are
+ * unique within a person, so `(ownerId, assetId)` uniquely identifies the asset
+ * even across people — no global asset-id scheme needed yet.
+ */
+export function resolveAsset(
+  ownerId: string,
+  assetId: string,
+): Photo | undefined {
+  return getPerson(ownerId).gallery.find((p) => p.id === assetId);
 }

@@ -6,8 +6,9 @@ apps are Markdown definitions, files are placeholders with metadata, and the
 "intelligence" is a pluggable adapter that starts fully mocked (no LLM tokens
 spent) and can be swapped for a real model later.
 
-This is **Milestone 1**: the phone shell + one app (**Photos**), driven entirely
-by authored content.
+Through **Milestone 3** it's a multi-person world: six residents with their own
+themed phones and galleries, a **Photos** app, a persistent **assistant**, and a
+**Messages** inbox where shares actually arrive — all driven by authored content.
 
 ## Quick start
 
@@ -24,6 +25,11 @@ people in it — all from committed metadata, never image analysis. Sharing rout
 through an assistant proposal (recipients + a drafted message you approve); sent
 items persist (localStorage) and can be wiped with **Reset world**.
 
+Then use the **POV switcher** in the dev bar to embody a recipient and open
+**Messages** — the share you just sent is waiting in their inbox (thread view
+with photo thumbnails). **Contacts** shows each person's graph, derived from who
+they co-appear with in photos.
+
 Run tests with `npm run test`.
 
 ## How it's organized
@@ -33,22 +39,22 @@ the engine.
 
 ```
 world/                     # CONTENT — authored, no code
-  apps/photos.md           # app definition (frontmatter capabilities/actions)
-  people/ava-chen/
+  apps/{photos,messages,contacts}.md   # app definitions (frontmatter)
+  people/<person>/         # six residents, each a full person
     profile.md             # who they are
-    contacts.md            # who they know
     devices/phone.md       # a device: theme + installed apps
     files/gallery/         # img-00N.svg + img-00N.yaml (metadata sidecar)
-  themes/midnight.md       # visual identity as tokens
+  themes/<theme>.md        # visual identity as tokens (one per resident)
 src/
-  world/                   # loaders + zod schemas (parse world/ → typed seed World)
+  world/                   # loaders + zod schemas + graph (contactsOf/resolveAsset)
   state/                   # runtime state: event log + reducer + store (mutable)
-  session/                 # POV: which person/device is embodied (+ switch)
+  session/                 # POV: which person/device is embodied (+ person/device switch)
   intelligence/            # person brains behind one swappable interface
   context/                 # assembleContext → bundle a decider consumes
   actions/                 # propose/commit pipeline + approve/send sheet
+  assistant/               # persistent ✨ assistant: suggestions + activity
   phone/                   # device frame, status bar, lock/home, router, dev bar
-  apps/                    # app registry + Photos renderer
+  apps/                    # app registry + Photos / Messages / Contacts renderers
   theme/                   # theme tokens → CSS variables
   config.ts                # sim start clock, hero person/device, provider choice
 ```
@@ -99,7 +105,10 @@ subpath and can be opened on a real phone.
   context assembly, session/POV, person-scoped brains, tests.
 - **M2** ✅ Assistant surface — persistent ✨ assistant with proactive suggestions
   and an activity feed; Photos multi-select share.
-- **M3** Multiple people + contacts graph (+ inbox/threads).
+- **M3** ✅ Multiple people + contacts graph — six residents with their own themed
+  phones; **POV switcher** to embody any of them; a **Messages** inbox where
+  shares actually arrive (threads + photo thumbnails) and a **Contacts** app for
+  the derived people graph.
 - **M4** Scenarios that play sequences across people/devices.
 - **M5** Real LLM provider behind the intelligence interface.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.
