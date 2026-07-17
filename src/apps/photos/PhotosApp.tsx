@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { propose, type Proposal } from '../../actions';
 import { ProposalSheet } from '../../actions/ProposalSheet';
 import { assembleContext } from '../../context';
@@ -16,7 +16,7 @@ import { PhotoDetail } from './PhotoDetail';
  * a multi-select mode that shares many photos in one proposal via the pipeline.
  */
 export function PhotosApp({ owner, onClose }: AppScreenProps) {
-  const { session } = useSession();
+  const { session, setSelection } = useSession();
   const { state } = useStore();
   const now = useNow();
   const groups = useMemo(
@@ -26,9 +26,21 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
 
   const [openPhoto, setOpenPhoto] = useState<Photo | null>(null);
   const [selecting, setSelecting] = useState(false);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const actionBar = useMountTransition(selecting, 300);
+
+  // Picked photos live in the session selection (not local state) so the
+  // assistant sees what's selected — "share these" can bind to it.
+  const picked = useMemo(
+    () =>
+      new Set(
+        session.selection?.app === 'photos' ? session.selection.ids : [],
+      ),
+    [session.selection],
+  );
+
+  // Leaving the app abandons the selection.
+  useEffect(() => () => setSelection(null), [setSelection]);
 
   if (openPhoto) {
     return <PhotoDetail photo={openPhoto} onBack={() => setOpenPhoto(null)} />;
@@ -36,25 +48,22 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
 
   function exitSelect() {
     setSelecting(false);
-    setPicked(new Set());
+    setSelection(null);
   }
 
   function toggle(id: string) {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(picked);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelection(
+      next.size ? { app: 'photos', kind: 'photos', ids: [...next] } : null,
+    );
   }
 
   function shareSelected() {
     const photos = owner.gallery.filter((p) => picked.has(p.id));
     if (!photos.length) return;
-    const ctx = assembleContext(session, state, {
-      app: 'photos',
-      photoIds: photos.map((p) => p.id),
-    });
+    const ctx = assembleContext(session, state, { app: 'photos' });
     setProposal(propose('share-photos', ctx, photos));
   }
 
