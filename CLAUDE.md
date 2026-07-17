@@ -485,6 +485,48 @@ Deferred: `PlanStepCompleted` events (per-step persistence), branching/
 conditional plans, an "auto-approve" supervision level that commits action steps
 without pausing, plans that span multiple people's devices.
 
+### Roadmap — enhancement tracks (post-harness II)
+
+Six tracks, ordered by leverage. Tracks 1–4 and 6 are staged below; track 5 is
+M5 and track "shells" is M6. Each stage is one PR-sized change.
+
+1. **Capability breadth** — make plans genuinely cross-app. `send-message`
+   (reply from the inbox, closing the M3 deferral), a **Reminders** app with
+   `create-reminder` (the cheapest genuinely-different effect), and new
+   selection kinds (a thread or contact, not just photos) so "message *this*
+   group" can bind. Plans get composite: "share these with Maya and remind me
+   to print one" spans three apps.
+2. **Supervision & trust** — the heart of the research question. Per-plan
+   supervision levels at the `PlanSheet` (confirm each action / confirm once /
+   just do it), **editable proposals** (tweak recipients/message before Send),
+   plan editing (strike a step before running), and interrupt-&-takeover
+   (detect the user doing a paused step manually — the step's event is already
+   in the log — and skip ahead).
+3. **Context depth** — a situated brain. Use the facts it already records
+   (`last-shared-with` is written and never read; don't re-suggest
+   already-shared photos via `messagesWithAttachment`), persist chat history as
+   events, and react to **inbound** shares ("Sam sent 2 photos; reply?").
+4. **World dynamics** — a world that acts back. Resident autopilot behaviors
+   (profiles' parsed-but-unread `behaviors:` field; e.g. Sam replies +2h sim
+   time after a share), unread badges (`ThreadRead` event, deferred since M3),
+   and a `message` scenario step kind.
+5. **M5 — real LLM brain** (below), plus an **evaluation harness**: fixtures of
+   (world state, selection, request) → expected plan, with the mock as oracle,
+   so LLM decomposition quality is measured, not eyeballed.
+6. **Research instrumentation** — turn the prototype into an instrument. The
+   event log is the telemetry substrate: record plan proposed/edited/approved/
+   cancelled + per-step timing, compare manual-path vs assistant-path for the
+   same task (taps, seconds), add a session-export. Fold in alongside the first
+   real user-drive session.
+
+**Staged sequence:** ① capability breadth (Reminders + `send-message` + new
+selection kinds) → ② supervision levels + editable proposals → ③ situated
+brain → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
+(⑥) alongside whichever stage runs the first study. Rationale: supervision is
+only interesting once plans have multiple real actions to supervise; the LLM
+goes late because every earlier track makes its job better-defined while the
+swap stays cheap by design.
+
 ### M5 — Real LLM provider
 
 Implement `LLMIntelligence` behind the existing `IntelligenceProvider` interface
