@@ -19,16 +19,33 @@ export interface Fact {
   value: string;
 }
 
+/** Derived record of a runtime plan the assistant ran. */
+export interface PlanRun {
+  planId: string;
+  person: string;
+  goal: string;
+  steps: number;
+  at: number;
+  outcome: 'running' | 'completed' | 'cancelled';
+}
+
 /** Runtime (mutable) world state, all derived from the event log. */
 export interface RuntimeState {
   clock: number; // sim epoch ms
   log: SimEvent[]; // append-only source of truth (persisted)
   messages: Message[];
   facts: Record<string, Fact[]>; // personId -> facts
+  plans: PlanRun[]; // runtime plans, in start order
 }
 
 export function freshState(): RuntimeState {
-  return { clock: SIM_START.getTime(), log: [], messages: [], facts: {} };
+  return {
+    clock: SIM_START.getTime(),
+    log: [],
+    messages: [],
+    facts: {},
+    plans: [],
+  };
 }
 
 /**
@@ -68,6 +85,28 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
     }
     case 'ClockSet':
       return { ...state, clock: event.to };
+    case 'PlanStarted':
+      return {
+        ...state,
+        plans: [
+          ...state.plans,
+          {
+            planId: event.planId,
+            person: event.person,
+            goal: event.goal,
+            steps: event.steps,
+            at: event.at,
+            outcome: 'running',
+          },
+        ],
+      };
+    case 'PlanCompleted':
+      return {
+        ...state,
+        plans: state.plans.map((p) =>
+          p.planId === event.planId ? { ...p, outcome: event.outcome } : p,
+        ),
+      };
     case 'AppOpened':
       return state; // no derived change yet
   }

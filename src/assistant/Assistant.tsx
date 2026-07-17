@@ -3,17 +3,21 @@ import { propose, type Proposal } from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
 import { intelligenceFor, type ChatTurn, type Suggestion } from '../intelligence';
+import { PlanProgress } from '../plans/PlanProgress';
+import { PlanSheet } from '../plans/PlanSheet';
+import { usePlanRunner } from '../plans/usePlanRunner';
+import type { Plan } from '../plans/types';
 import { useSession } from '../session';
-import { messagesFrom, useNow, useStore } from '../state';
+import { messagesFrom, plansFor, useNow, useStore } from '../state';
 import { PillButton, Sheet } from '../ui';
 import { getPerson, resolvePerson } from '../world';
 
 /**
  * The persistent assistant: a floating button that opens a sheet of proactive
- * suggestions (one tap -> a Proposal you approve), an open-ended chat, and a
- * running activity feed of what's been sent. Built entirely on the M1.5
- * pipeline — new UI, no new plumbing beyond the brain's `suggestShares` and
- * `respond` methods.
+ * suggestions (one tap -> a Proposal you approve), an open-ended chat that can
+ * now return a runnable multi-step Plan, and a running activity feed. Plans
+ * execute through the shared runner, which drives the phone app-by-app while a
+ * progress HUD narrates the steps.
  */
 export function Assistant() {
   const { session } = useSession();
@@ -21,8 +25,11 @@ export function Assistant() {
   const now = useNow();
   const [open, setOpen] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
   const [chatInput, setChatInput] = useState('');
+
+  const runner = usePlanRunner();
 
   const owner = getPerson(session.personId);
   const suggestions = useMemo(
@@ -30,6 +37,7 @@ export function Assistant() {
     [session.personId, owner.gallery, now],
   );
   const activity = messagesFrom(state, session.personId);
+  const planRuns = plansFor(state, session.personId);
 
   function onSuggestion(s: Suggestion) {
     const ctx = assembleContext(session, state, {
@@ -50,6 +58,17 @@ export function Assistant() {
       { role: 'assistant', text: reply.text },
     ]);
     setChatInput('');
+    // A task-shaped reply carries a plan: close the sheet and preview it so the
+    // user can watch it run on the phone.
+    if (reply.plan) {
+      setPreviewPlan(reply.plan);
+      setOpen(false);
+    }
+  }
+
+  function runPlan() {
+    if (previewPlan) runner.start(previewPlan);
+    setPreviewPlan(null);
   }
 
   return (
@@ -64,7 +83,7 @@ export function Assistant() {
           onClick={() => setOpen(true)}
           aria-label="Open assistant"
           className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-fab transition duration-200 ease-out-soft active:scale-90 ${
-            open ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
+            open || runner.active ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
           }`}
         >
           ✨
@@ -73,6 +92,10 @@ export function Assistant() {
           )}
         </button>
       </span>
+
+      {runner.active && (
+        <PlanProgress active={runner.active} onCancel={runner.cancel} />
+      )}
 
       <Sheet
         open={open}
@@ -119,6 +142,9 @@ export function Assistant() {
         )}
 
         <h3 className="type-caption mb-space-sm mt-space-xl text-muted">Ask</h3>
+        <p className="type-caption mb-space-sm text-muted/70">
+          Try “share these” after selecting photos, or “share this week's photos”.
+        </p>
         {chatHistory.length > 0 && (
           <div className="mb-space-sm flex flex-col gap-space-sm">
             {chatHistory.map((turn, i) => (
@@ -160,10 +186,21 @@ export function Assistant() {
         <h3 className="type-caption mb-space-sm mt-space-xl text-muted">
           Recent activity
         </h3>
-        {activity.length === 0 ? (
-          <p className="type-body-sm text-muted">No messages sent yet.</p>
+        {activity.length === 0 && planRuns.length === 0 ? (
+          <p className="type-body-sm text-muted">No activity yet.</p>
         ) : (
           <div className="flex flex-col gap-space-sm">
+            {planRuns.map((run) => (
+              <div
+                key={run.planId}
+                className="animate-rise rounded-card bg-bg/60 p-space-md ring-1 ring-text/5"
+              >
+                <p className="type-caption text-accent">
+                  ✨ Plan · {run.outcome} · {run.steps} steps
+                </p>
+                <p className="type-body-sm mt-0.5">{run.goal}</p>
+              </div>
+            ))}
             {[...activity].reverse().map((m, i) => {
               const names = m.to
                 .map((id) => resolvePerson(session.personId, id).name)
@@ -189,10 +226,26 @@ export function Assistant() {
         )}
       </Sheet>
 
+      {/* Plan preview (chat -> plan). Approve to run it on the phone. */}
+      <PlanSheet
+        plan={previewPlan}
+        onRun={runPlan}
+        onCancel={() => setPreviewPlan(null)}
+      />
+
+      {/* Suggestion / direct-share proposals. */}
       <ProposalSheet
         proposal={proposal}
         onSent={() => setProposal(null)}
         onCancel={() => setProposal(null)}
+      />
+
+      {/* A running plan's action step surfaces its proposal here; committing it
+          advances the plan to the next step. */}
+      <ProposalSheet
+        proposal={runner.active?.proposal ?? null}
+        onSent={runner.onProposalSent}
+        onCancel={runner.cancel}
       />
     </>
   );

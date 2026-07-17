@@ -1,4 +1,5 @@
 import type { ContextBundle } from '../context';
+import type { Plan } from '../plans/types';
 import type { Photo } from '../world';
 
 export interface ResolvedPerson {
@@ -34,9 +35,14 @@ export interface ChatTurn {
   text: string;
 }
 
-/** The brain's reply to a free-form chat message. */
+/**
+ * The brain's reply to a free-form chat message. `text` is always present; a
+ * task-shaped request also yields a `plan` the assistant can preview and run —
+ * this is how the chat becomes able to *act*, not just describe.
+ */
 export interface ChatReply {
   text: string;
+  plan?: Plan;
 }
 
 /**
@@ -63,6 +69,14 @@ export interface PersonIntelligence {
    * decider would receive later."
    */
   respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply;
+  /**
+   * Decompose a free-form request into an ordered `Plan` over the capability
+   * registry — the runtime equivalent of an authored scenario, generated after
+   * the request arrives. Returns `null` when nothing in the request maps to a
+   * viable capability. Deterministic in the mock; the LLM-backed brain returns
+   * the same shape (tool/capability calls) in M5.
+   */
+  plan(ctx: ContextBundle, request: string): Plan | null;
 }
 
 /**

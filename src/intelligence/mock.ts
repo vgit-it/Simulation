@@ -1,4 +1,6 @@
 import type { ContextBundle } from '../context';
+import type { Plan, PlanStep } from '../plans/types';
+import { uid } from '../state';
 import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
 import type {
   ChatReply,
@@ -110,9 +112,92 @@ class MockPersonIntelligence implements PersonIntelligence {
     return suggestions;
   }
 
+  /**
+   * The photos a request refers to: the user's current selection if they've
+   * picked any, else this week's shareable set (what `suggestShares` surfaces).
+   */
+  private requestPhotos(ctx: ContextBundle): Photo[] {
+    const sel = ctx.situation.selection;
+    if (sel && sel.kind === 'photos' && sel.ids.length) {
+      return ctx.owner.gallery.filter((p) => sel.ids.includes(p.id));
+    }
+    const [top] = this.suggestShares(ctx.owner.gallery, ctx.now);
+    return top ? top.photos : [];
+  }
+
+  plan(ctx: ContextBundle, request: string): Plan | null {
+    const lower = request.toLowerCase();
+    const aboutSharing =
+      ['share', 'send', 'photo', 'pic'].some((k) => lower.includes(k)) ||
+      !!ctx.situation.selection;
+    if (!aboutSharing) return null;
+    if (!ctx.device.apps.includes('photos')) return null;
+
+    const photos = this.requestPhotos(ctx);
+    if (!photos.length) return null;
+    const draft = this.draftShare(photos);
+    if (!draft.recipients.length) return null; // no one to share with
+
+    const ids = photos.map((p) => p.id);
+    const fromSelection =
+      ctx.situation.selection?.kind === 'photos' &&
+      ctx.situation.selection.ids.length > 0;
+    const count = photos.length;
+    const noun = `photo${count === 1 ? '' : 's'}`;
+    const names = draft.recipients.map((r) => r.name).join(', ');
+
+    const steps: PlanStep[] = [
+      {
+        id: 'gather',
+        app: 'photos',
+        description: fromSelection
+          ? `Review your ${count} selected ${noun}`
+          : `Gather this week's ${count} ${noun}`,
+      },
+      {
+        id: 'share',
+        app: 'photos',
+        intent: 'share-photos',
+        ids,
+        description: `Share ${count === 1 ? 'it' : 'them'} with ${names}`,
+      },
+    ];
+    // Only add the confirmation hop if the device actually has Messages.
+    if (ctx.device.apps.includes('messages')) {
+      steps.push({
+        id: 'confirm',
+        app: 'messages',
+        description: 'Open Messages to confirm the send',
+      });
+    }
+
+    return {
+      id: uid('plan'),
+      goal: `Share ${count} ${noun} with ${names}`,
+      steps,
+    };
+  }
+
   respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply {
     const lower = message.toLowerCase();
     const greeting = history.length === 0 ? 'Hi! ' : '';
+
+    // An imperative, actionable request becomes a runnable plan; an advisory
+    // question ("what should I share?") stays a suggestion. The difference is
+    // whether the user is telling us to do something or asking what to do.
+    const isQuestion =
+      lower.trimEnd().endsWith('?') ||
+      /\b(what|which|who|how|when|should|do you|can i)\b/.test(lower);
+    const imperative = !isQuestion || !!ctx.situation.selection;
+    if (imperative) {
+      const plan = this.plan(ctx, message);
+      if (plan) {
+        return {
+          text: `${greeting}Here's a ${plan.steps.length}-step plan — review it and I'll run it.`,
+          plan,
+        };
+      }
+    }
 
     if (lower.includes('share') || lower.includes('photo')) {
       const [top] = this.suggestShares(ctx.owner.gallery, ctx.now);
