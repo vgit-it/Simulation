@@ -1,8 +1,65 @@
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/figtree';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Type-scale utilities. One class per role of the OS design language
+   (world/design/DESIGN.md); every property resolves to a CSS variable emitted
+   from those authored tokens (src/theme designToCssVars), so editing the
+   DESIGN.md file restyles all of these — no code changes. */
+@layer utilities {
+  .type-display {
+    font-family: var(--type-display-family);
+    font-size: var(--type-display-size);
+    font-weight: var(--type-display-weight);
+    line-height: var(--type-display-leading);
+    letter-spacing: var(--type-display-tracking);
+  }
+  .type-headline {
+    font-family: var(--type-headline-family);
+    font-size: var(--type-headline-size);
+    font-weight: var(--type-headline-weight);
+    line-height: var(--type-headline-leading);
+    letter-spacing: var(--type-headline-tracking);
+  }
+  .type-title {
+    font-family: var(--type-title-family);
+    font-size: var(--type-title-size);
+    font-weight: var(--type-title-weight);
+    line-height: var(--type-title-leading);
+    letter-spacing: var(--type-title-tracking);
+  }
+  .type-body {
+    font-family: var(--type-body-family);
+    font-size: var(--type-body-size);
+    font-weight: var(--type-body-weight);
+    line-height: var(--type-body-leading);
+    letter-spacing: var(--type-body-tracking);
+  }
+  .type-body-sm {
+    font-family: var(--type-body-sm-family);
+    font-size: var(--type-body-sm-size);
+    font-weight: var(--type-body-sm-weight);
+    line-height: var(--type-body-sm-leading);
+    letter-spacing: var(--type-body-sm-tracking);
+  }
+  .type-label {
+    font-family: var(--type-label-family);
+    font-size: var(--type-label-size);
+    font-weight: var(--type-label-weight);
+    line-height: var(--type-label-leading);
+    letter-spacing: var(--type-label-tracking);
+  }
+  .type-caption {
+    font-family: var(--type-caption-family);
+    font-size: var(--type-caption-size);
+    font-weight: var(--type-caption-weight);
+    line-height: var(--type-caption-leading);
+    letter-spacing: var(--type-caption-tracking);
+  }
+}
 
 /* Fallback theme tokens. The active device theme overrides these at runtime
    via src/theme (applyTheme). See world/themes/*.md for the source values. */

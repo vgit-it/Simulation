@@ -1,17 +1,31 @@
 import { world, validateIntegrity, type LoadedPerson, type World } from './loader';
-import type { AppDefinition, Device, Photo, Scenario, Theme } from './schema';
+import type {
+  AppDefinition,
+  DesignSystem,
+  Device,
+  Photo,
+  Scenario,
+  Theme,
+} from './schema';
 
 export type { World, LoadedPerson };
 export type {
   AppDefinition,
   Contact,
+  DesignSystem,
   Device,
   Scenario,
   ScenarioStep,
   Theme,
+  TypeRole,
   Photo,
 } from './schema';
 export { world, validateIntegrity };
+
+/** The OS design language (world/design/DESIGN.md), shared by every device. */
+export function getDesignSystem(): DesignSystem {
+  return world.design;
+}
 
 /** A person/contact resolved to the minimal fields the UI needs to render them. */
 export interface ResolvedPerson {

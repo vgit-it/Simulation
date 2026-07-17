@@ -77,7 +77,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
         }
       />
 
-      <div className="flex-1 overflow-y-auto px-4 pb-24">
+      <div className="flex-1 overflow-y-auto px-space-lg pb-24">
         {groups.length === 0 && (
           <EmptyState
             icon="📷"
@@ -86,8 +86,8 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
           />
         )}
         {groups.map((group) => (
-          <section key={group.key} className="mb-6">
-            <h2 className="mb-2 px-1 text-sm font-semibold text-muted">
+          <section key={group.key} className="mb-space-xl">
+            <h2 className="type-caption mb-space-sm px-1 text-muted">
               {group.label}
             </h2>
             <div className="grid grid-cols-3 gap-1.5">
@@ -100,7 +100,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
                     onClick={() =>
                       selecting ? toggle(photo.id) : setOpenPhoto(photo)
                     }
-                    className="relative aspect-square animate-rise overflow-hidden rounded-lg bg-surface transition-transform duration-150 active:scale-[0.97]"
+                    className="relative aspect-square animate-rise overflow-hidden rounded-ds-xs bg-surface transition-transform duration-150 active:scale-[0.97]"
                     style={{ animationDelay: `${delay}ms` }}
                   >
                     <img
@@ -133,11 +133,11 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
 
       {actionBar.mounted && (
         <div
-          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-text/5 bg-surface/95 px-5 py-4 shadow-sheet backdrop-blur ${
+          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-space-md border-t border-text/5 bg-surface/95 px-space-lg py-space-lg shadow-sheet backdrop-blur ${
             actionBar.closing ? 'animate-slide-down' : 'animate-slide-up'
           }`}
         >
-          <span className="text-sm text-muted">{picked.size} selected</span>
+          <span className="type-body-sm text-muted">{picked.size} selected</span>
           <PillButton
             variant="accent"
             disabled={picked.size === 0}

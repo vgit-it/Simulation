@@ -19,16 +19,17 @@ interface HomeScreenProps {
 export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps) {
   const now = useNow();
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-surface to-bg px-6 pb-8 pt-4">
-      <div className="mb-6 flex animate-rise items-center justify-between">
+    <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-surface to-bg px-space-xl pb-space-2xl pt-space-lg">
+      {/* The greeting is a brand moment — headline face, room to breathe. */}
+      <div className="mb-space-2xl flex animate-rise items-end justify-between">
         <div>
-          <p className="text-xs text-muted">{greeting(now.getHours())}</p>
-          <p className="text-lg font-semibold">{owner.name}</p>
+          <p className="type-caption text-muted">{greeting(now.getHours())}</p>
+          <p className="type-headline mt-0.5">{owner.name.split(' ')[0]}</p>
         </div>
         <PillButton onClick={onLock}>Lock</PillButton>
       </div>
 
-      <div className="grid grid-cols-4 gap-x-4 gap-y-6">
+      <div className="grid grid-cols-4 gap-x-space-lg gap-y-space-xl">
         {device.apps.map((appId, i) => {
           const app = getApp(appId);
           return (
@@ -41,7 +42,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
               <span className="flex h-14 w-14 items-center justify-center rounded-card bg-text/10 text-2xl shadow-inner ring-1 ring-text/5 transition-transform duration-150 ease-out-soft active:scale-90">
                 {app.icon}
               </span>
-              <span className="text-[11px] text-text/90">{app.name}</span>
+              <span className="type-caption text-text/90">{app.name}</span>
             </button>
           );
         })}

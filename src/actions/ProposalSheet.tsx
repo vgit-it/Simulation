@@ -44,18 +44,16 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
 
   return (
     <Sheet open={proposal !== null} onDismiss={sent ? () => {} : onCancel}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-        Assistant
-      </p>
-      <h2 className="mt-1 text-lg font-semibold">{shown.title}</h2>
-      <p className="text-sm text-muted">{shown.summary}</p>
+      <p className="type-caption text-accent">Assistant</p>
+      <h2 className="type-title mt-1">{shown.title}</h2>
+      <p className="type-body-sm mt-0.5 text-muted">{shown.summary}</p>
 
       {shown.recipients.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-space-md flex flex-wrap gap-space-sm">
           {shown.recipients.map((r) => (
             <span
               key={r.id}
-              className="flex items-center gap-1.5 rounded-full bg-text/10 py-1 pl-1.5 pr-3 text-sm"
+              className="type-body-sm flex items-center gap-1.5 rounded-ds-full bg-text/10 py-1 pl-1.5 pr-3"
             >
               <span className="text-base">{r.avatar}</span>
               {r.name}
@@ -64,15 +62,15 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
         </div>
       )}
 
-      <div className="mt-3 rounded-card bg-bg/60 p-3 text-sm text-text/90 ring-1 ring-text/5">
+      <div className="type-body mt-space-md rounded-card bg-bg/60 p-space-md text-text/90 ring-1 ring-text/5">
         {shown.message}
       </div>
 
-      <div className="mt-5 flex gap-3">
+      <div className="mt-space-xl flex gap-space-md">
         <button
           onClick={onCancel}
           disabled={sent}
-          className={`flex-1 rounded-full bg-text/10 py-2.5 text-sm font-medium text-text transition duration-150 ease-out-soft active:scale-95 ${
+          className={`type-label flex-1 rounded-ds-full bg-text/10 py-2.5 text-text transition duration-150 ease-out-soft active:scale-95 ${
             sent ? 'opacity-40' : ''
           }`}
         >
@@ -81,7 +79,7 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
         <button
           disabled={!canSend || sent}
           onClick={onSend}
-          className={`flex-1 rounded-full bg-accent py-2.5 text-sm font-semibold text-white transition duration-150 ease-out-soft active:scale-95 ${
+          className={`type-label flex-1 rounded-ds-full bg-accent py-2.5 text-white transition duration-150 ease-out-soft active:scale-95 ${
             !canSend ? 'opacity-40' : ''
           }`}
         >

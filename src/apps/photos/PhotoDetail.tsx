@@ -51,10 +51,12 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
         title=""
         onBack={onBack}
         backLabel="Photos"
-        actions={<span className="text-xs text-muted">{formatDate(photo.date)}</span>}
+        actions={
+          <span className="type-caption text-muted">{formatDate(photo.date)}</span>
+        }
       />
 
-      <div className="px-4">
+      <div className="px-space-lg">
         <img
           src={photo.url}
           alt={photo.location}
@@ -62,37 +64,37 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-space-lg py-space-lg">
         <div
           className="flex animate-rise items-center justify-between"
           style={{ animationDelay: '80ms' }}
         >
-          <h2 className="text-lg font-semibold">{photo.location}</h2>
+          <h2 className="type-title">{photo.location}</h2>
           <PillButton variant="accent" onClick={onShare}>
             Share
           </PillButton>
         </div>
 
         {sharedWith.length > 0 && (
-          <p className="mt-2 animate-rise text-xs text-muted">
+          <p className="type-caption mt-space-sm animate-rise text-muted">
             ✓ Shared with {sharedWith.map((p) => p.name).join(', ')}
           </p>
         )}
 
         <h3
-          className="mb-2 mt-5 animate-rise text-xs font-semibold uppercase tracking-wide text-muted"
+          className="type-caption mb-space-sm mt-space-xl animate-rise text-muted"
           style={{ animationDelay: '120ms' }}
         >
           People
         </h3>
         <div
-          className="flex animate-rise flex-wrap gap-2"
+          className="flex animate-rise flex-wrap gap-space-sm"
           style={{ animationDelay: '120ms' }}
         >
           {people.map((person) => (
             <span
               key={person.id}
-              className="flex items-center gap-1.5 rounded-full bg-text/10 py-1 pl-1.5 pr-3 text-sm"
+              className="type-body-sm flex items-center gap-1.5 rounded-ds-full bg-text/10 py-1 pl-1.5 pr-3"
             >
               <span className="text-base">{person.avatar}</span>
               {person.name}
@@ -102,14 +104,14 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
 
         {photo.tags.length > 0 && (
           <div className="animate-rise" style={{ animationDelay: '160ms' }}>
-            <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">
+            <h3 className="type-caption mb-space-sm mt-space-xl text-muted">
               Tags
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-space-sm">
               {photo.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-accent/40 px-2.5 py-0.5 text-xs text-accent"
+                  className="type-caption rounded-ds-full border border-accent/40 px-2.5 py-1 text-accent"
                 >
                   #{tag}
                 </span>

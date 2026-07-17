@@ -2,6 +2,7 @@ import { parseFrontmatter, parseYaml } from './frontmatter';
 import {
   appDefinitionSchema,
   contactsFileSchema,
+  designSystemSchema,
   deviceSchema,
   photoMetaSchema,
   profileSchema,
@@ -9,6 +10,7 @@ import {
   themeSchema,
   type AppDefinition,
   type Contact,
+  type DesignSystem,
   type Device,
   type Photo,
   type Profile,
@@ -30,6 +32,7 @@ export interface LoadedPerson extends Profile {
 }
 
 export interface World {
+  design: DesignSystem;
   apps: Record<string, AppDefinition>;
   themes: Record<string, Theme>;
   people: Record<string, LoadedPerson>;
@@ -85,6 +88,12 @@ const scenarioFiles = import.meta.glob('/world/scenarios/*.md', {
   eager: true,
 }) as Record<string, string>;
 
+const designFiles = import.meta.glob('/world/design/DESIGN.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
 // --- helpers ---------------------------------------------------------------
 function validate<S extends z.ZodTypeAny>(
   schema: S,
@@ -110,6 +119,35 @@ function personIdFromPath(path: string): string {
 /** `/world/.../img-001.yaml` -> `img-001` */
 function baseName(path: string): string {
   return path.split('/').pop()!.replace(/\.[^.]+$/, '');
+}
+
+/**
+ * Loads the single OS design language file. Typography roles may reference the
+ * shared font stacks by "{fonts.<id>}"; resolve those here so consumers always
+ * see concrete family stacks, and dangling references fail loudly at load.
+ */
+function buildDesign(): DesignSystem {
+  const entries = Object.entries(designFiles);
+  if (entries.length !== 1) {
+    throw new Error(
+      `Expected exactly one design system at world/design/DESIGN.md, found ${entries.length}`,
+    );
+  }
+  const [path, raw] = entries[0];
+  const { data } = parseFrontmatter(raw);
+  const design = validate(designSystemSchema, data, path);
+  for (const [role, type] of Object.entries(design.typography)) {
+    const ref = type.fontFamily.match(/^\{fonts\.([\w-]+)\}$/);
+    if (!ref) continue;
+    const stack = design.fonts[ref[1]];
+    if (!stack) {
+      throw new Error(
+        `Invalid world file "${path}":\n  - typography.${role}: references unknown font "${ref[1]}"`,
+      );
+    }
+    type.fontFamily = stack;
+  }
+  return design;
 }
 
 // --- build -----------------------------------------------------------------
@@ -182,7 +220,7 @@ function buildWorld(): World {
     scenarios[scenario.id] = scenario;
   }
 
-  return { apps, themes, people, scenarios };
+  return { design: buildDesign(), apps, themes, people, scenarios };
 }
 
 /**

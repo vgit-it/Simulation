@@ -18,7 +18,7 @@ export function ContactsApp({ owner, onClose }: AppScreenProps) {
         actions={<PillButton onClick={onClose}>Home</PillButton>}
       />
 
-      <div className="flex-1 overflow-y-auto px-3 pb-6">
+      <div className="flex-1 overflow-y-auto px-space-sm pb-space-xl">
         {contacts.length === 0 ? (
           <EmptyState
             icon="👥"
@@ -32,15 +32,15 @@ export function ContactsApp({ owner, onClose }: AppScreenProps) {
               return (
                 <div
                   key={c.id}
-                  className="flex animate-rise items-center gap-3 rounded-card px-3 py-3 transition-colors duration-150 active:bg-text/5"
+                  className="flex animate-rise items-center gap-space-md rounded-card px-space-md py-space-md transition-colors duration-150 active:bg-text/5"
                   style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
                 >
                   <Avatar emoji={c.avatar} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
+                    <span className="type-body block truncate font-medium">
                       {c.name}
                     </span>
-                    <span className="mt-0.5 block text-xs text-muted">
+                    <span className="type-body-sm mt-0.5 block text-muted">
                       In {photos.length} photo{photos.length === 1 ? '' : 's'}{' '}
                       together
                     </span>
@@ -51,7 +51,7 @@ export function ContactsApp({ owner, onClose }: AppScreenProps) {
                         key={p.id}
                         src={p.url}
                         alt=""
-                        className="h-8 w-8 rounded-md object-cover ring-1 ring-text/10"
+                        className="h-8 w-8 rounded-ds-xs object-cover ring-1 ring-text/10"
                       />
                     ))}
                   </span>
