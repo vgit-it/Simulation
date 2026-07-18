@@ -1,6 +1,7 @@
 export type { SimEvent } from './events';
 export { uid } from './events';
 export type {
+  ChatTurnRecord,
   Fact,
   Message,
   PlanRun,
@@ -11,6 +12,7 @@ export type {
 export { freshState, hydrate, reduce } from './reducer';
 export type { Thread } from './selectors';
 export {
+  chatHistoryFor,
   factsFor,
   inboxThreads,
   messagesFrom,

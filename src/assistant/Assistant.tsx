@@ -2,15 +2,15 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { propose, type Proposal } from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
-import { intelligenceFor, type ChatTurn, type Suggestion } from '../intelligence';
+import { intelligenceFor, type Suggestion } from '../intelligence';
 import { PlanProgress } from '../plans/PlanProgress';
 import { PlanSheet } from '../plans/PlanSheet';
 import { usePlanRunner } from '../plans/usePlanRunner';
 import type { Plan, Supervision } from '../plans/types';
 import { useSession } from '../session';
-import { messagesFrom, plansFor, useNow, useStore } from '../state';
+import { chatHistoryFor, messagesFrom, plansFor, useStore } from '../state';
 import { PillButton, Sheet } from '../ui';
-import { getPerson, resolvePerson } from '../world';
+import { resolvePerson } from '../world';
 
 /**
  * The persistent assistant: a floating button that opens a sheet of proactive
@@ -21,29 +21,28 @@ import { getPerson, resolvePerson } from '../world';
  */
 export function Assistant() {
   const { session } = useSession();
-  const { state } = useStore();
-  const now = useNow();
+  const { state, dispatch } = useStore();
   const [open, setOpen] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
-  const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
   const [chatInput, setChatInput] = useState('');
 
   const runner = usePlanRunner();
 
-  const owner = getPerson(session.personId);
-  const suggestions = useMemo(
-    () => intelligenceFor(session.personId).suggestShares(owner.gallery, now),
-    [session.personId, owner.gallery, now],
-  );
+  // Suggestions are situated: the brain reads the runtime log through the
+  // context (already-shared photos drop out; inbound shares surface a reply).
+  const suggestions = useMemo(() => {
+    const ctx = assembleContext(session, state, {});
+    return intelligenceFor(session.personId).suggest(ctx);
+  }, [session, state]);
   const activity = messagesFrom(state, session.personId);
   const planRuns = plansFor(state, session.personId);
+  // Chat history is event-log state: it survives reloads and POV round-trips.
+  const chatHistory = chatHistoryFor(state, session.personId);
 
   function onSuggestion(s: Suggestion) {
-    const ctx = assembleContext(session, state, {
-      photoIds: s.photos.map((p) => p.id),
-    });
-    setProposal(propose(s.intent, ctx, s.photos.map((p) => p.id)));
+    const ctx = assembleContext(session, state, {});
+    setProposal(propose(s.intent, ctx, s.ids, s.payload));
   }
 
   function onChatSubmit(e: FormEvent) {
@@ -51,12 +50,21 @@ export function Assistant() {
     const message = chatInput.trim();
     if (!message) return;
     const ctx = assembleContext(session, state, {});
-    const reply = intelligenceFor(session.personId).respond(ctx, chatHistory, message);
-    setChatHistory((h) => [
-      ...h,
-      { role: 'user', text: message },
-      { role: 'assistant', text: reply.text },
-    ]);
+    const reply = intelligenceFor(session.personId).respond(
+      ctx,
+      chatHistory.map((t) => ({ role: t.role, text: t.text })),
+      message,
+    );
+    const at = state.clock;
+    const person = session.personId;
+    dispatch({ type: 'ChatMessage', at, person, role: 'user', text: message });
+    dispatch({
+      type: 'ChatMessage',
+      at,
+      person,
+      role: 'assistant',
+      text: reply.text,
+    });
     setChatInput('');
     // A task-shaped reply carries a plan: close the sheet and preview it so the
     // user can watch it run on the phone.
@@ -127,7 +135,7 @@ export function Assistant() {
                 className="flex animate-rise items-center gap-space-md rounded-card bg-bg/60 p-space-md text-left ring-1 ring-text/5 transition duration-150 active:scale-[0.98]"
                 style={{ animationDelay: `${i * 40}ms` }}
               >
-                <span className="text-xl">📷</span>
+                <span className="text-xl">{s.icon}</span>
                 <span className="min-w-0">
                   <span className="type-body block font-medium">{s.title}</span>
                   {s.subtitle && (

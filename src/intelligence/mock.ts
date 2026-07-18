@@ -1,6 +1,12 @@
 import type { ContextBundle } from '../context';
 import type { Plan, PlanStep } from '../plans/types';
-import { uid } from '../state';
+import {
+  factsFor,
+  messagesFrom,
+  uid,
+  type Message,
+  type RuntimeState,
+} from '../state';
 import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
 import type {
   ChatReply,
@@ -17,7 +23,10 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Deterministic, token-free brain for one person. All answers are computed from
- * committed metadata + the passed-in clock — no perception, no network.
+ * committed metadata + the passed-in context — no perception, no network. The
+ * brain is SITUATED: it reads runtime history (what's been shared, what
+ * arrived, what it recorded) through the context's state, so it never
+ * re-suggests what the log shows already happened.
  */
 class MockPersonIntelligence implements PersonIntelligence {
   constructor(readonly personId: string) {}
@@ -76,44 +85,109 @@ class MockPersonIntelligence implements PersonIntelligence {
       : `Hey everyone! Just wanted to say hi — let's catch up soon. 😊`;
   }
 
-  suggestShares(photos: Photo[], now: Date): Suggestion[] {
-    const hasOthers = (p: Photo) => p.people.some((id) => id !== this.personId);
-    const groups = this.groupPhotosByTime(photos, now);
-    const thisWeek = (groups.find((g) => g.key === 'this-week')?.photos ?? [])
-      .filter(hasOthers);
+  /** Photo ids this person has already sent (any intent) — never re-suggest. */
+  private sharedPhotoIds(state: RuntimeState): Set<string> {
+    const out = new Set<string>();
+    for (const m of messagesFrom(state, this.personId)) {
+      for (const id of m.attachments) out.add(id);
+    }
+    return out;
+  }
 
+  /** This week's photos that include other people and haven't been shared yet. */
+  private shareablePhotos(ctx: ContextBundle): Photo[] {
+    const shared = this.sharedPhotoIds(ctx.state);
+    const groups = this.groupPhotosByTime(ctx.owner.gallery, ctx.now);
+    return (groups.find((g) => g.key === 'this-week')?.photos ?? []).filter(
+      (p) =>
+        p.people.some((id) => id !== this.personId) && !shared.has(p.id),
+    );
+  }
+
+  /** The newest inbound share this person hasn't replied to yet, if any. */
+  private unansweredInboundShare(state: RuntimeState): Message | undefined {
+    const inbound = state.messages
+      .filter(
+        (m) =>
+          m.from !== this.personId &&
+          m.to.includes(this.personId) &&
+          m.attachments.length > 0,
+      )
+      .sort((a, b) => b.at - a.at)[0];
+    if (!inbound) return undefined;
+    // `>=`, not `>`: the sim clock only moves when a scenario/dev control
+    // advances it, so a reply sent moments later carries the SAME sim
+    // timestamp as the share it answers.
+    const replied = state.messages.some(
+      (m) =>
+        m.from === this.personId &&
+        m.at >= inbound.at &&
+        m.to.includes(inbound.from),
+    );
+    return replied ? undefined : inbound;
+  }
+
+  suggest(ctx: ContextBundle): Suggestion[] {
     const suggestions: Suggestion[] = [];
 
-    // Hero suggestion: share this week's photos with the people in them.
+    // React to the world: an inbound share deserves a reply.
+    const inbound = this.unansweredInboundShare(ctx.state);
+    if (inbound) {
+      const sender = resolvePerson(this.personId, inbound.from);
+      const others = [...new Set([inbound.from, ...inbound.to])].filter(
+        (id) => id !== this.personId,
+      );
+      const count = inbound.attachments.length;
+      suggestions.push({
+        id: `reply-${inbound.id}`,
+        intent: 'send-message',
+        icon: '💬',
+        title: `Reply to ${sender.name}`,
+        subtitle: `Sent you ${count} photo${count === 1 ? '' : 's'}`,
+        ids: others,
+        payload: {
+          text: `Love these — thanks for sharing, ${sender.name.split(' ')[0]}! 😍`,
+        },
+      });
+    }
+
+    // Hero suggestion: share this week's not-yet-shared photos.
+    const thisWeek = this.shareablePhotos(ctx);
     if (thisWeek.length) {
       const draft = this.draftShare(thisWeek);
       suggestions.push({
         id: 'share-this-week',
         intent: 'share-photos',
+        icon: '📷',
         title: `Share this week's ${thisWeek.length} photo${
           thisWeek.length === 1 ? '' : 's'
         }`,
         subtitle: draft.recipients.length
           ? `With ${draft.recipients.map((r) => r.name).join(', ')}`
           : '',
-        photos: thisWeek,
+        ids: thisWeek.map((p) => p.id),
       });
     }
 
-    // A narrower nudge: the single most recent photo that has other people.
-    const latest = [...photos]
-      .filter(hasOthers)
+    // A narrower nudge: the single most recent unshared photo with others.
+    const shared = this.sharedPhotoIds(ctx.state);
+    const latest = [...ctx.owner.gallery]
+      .filter(
+        (p) =>
+          p.people.some((id) => id !== this.personId) && !shared.has(p.id),
+      )
       .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
     if (latest && thisWeek.length !== 1) {
       const draft = this.draftShare([latest]);
       suggestions.push({
         id: `share-latest-${latest.id}`,
         intent: 'share-photos',
+        icon: '📷',
         title: `Share your ${latest.location} photo`,
         subtitle: draft.recipients.length
           ? `With ${draft.recipients.map((r) => r.name).join(', ')}`
           : '',
-        photos: [latest],
+        ids: [latest.id],
       });
     }
 
@@ -122,15 +196,23 @@ class MockPersonIntelligence implements PersonIntelligence {
 
   /**
    * The photos a request refers to: the user's current selection if they've
-   * picked any, else this week's shareable set (what `suggestShares` surfaces).
+   * picked any, else this week's not-yet-shared set (what `suggest` surfaces).
    */
   private requestPhotos(ctx: ContextBundle): Photo[] {
     const sel = ctx.situation.selection;
     if (sel && sel.kind === 'photos' && sel.ids.length) {
       return ctx.owner.gallery.filter((p) => sel.ids.includes(p.id));
     }
-    const [top] = this.suggestShares(ctx.owner.gallery, ctx.now);
-    return top ? top.photos : [];
+    return this.shareablePhotos(ctx);
+  }
+
+  /** Who this person shared with most recently (the recorded fact, read back). */
+  private lastSharedWith(ctx: ContextBundle): string[] {
+    const facts = factsFor(ctx.state, this.personId).filter(
+      (f) => f.key === 'last-shared-with',
+    );
+    const last = facts[facts.length - 1];
+    return last ? [last.value] : [];
   }
 
   /**
@@ -138,7 +220,8 @@ class MockPersonIntelligence implements PersonIntelligence {
    * keywords + the current selection kind:
    *  - share-photos  (photo keywords, or a photos selection)
    *  - send-message  (message keywords, or a people selection — a thread's
-   *    participants or a tapped contact — falling back to share recipients)
+   *    participants or a tapped contact — falling back to share recipients,
+   *    then to the last-shared-with fact)
    *  - create-reminder (remind keywords; title extracted from "remind me to …")
    * Steps are gated on the app being installed on the embodied device, so the
    * plan never contains a capability the device can't perform.
@@ -177,7 +260,7 @@ class MockPersonIntelligence implements PersonIntelligence {
             app: 'photos',
             description: fromSelection
               ? `Review your ${count} selected ${noun}`
-              : `Gather this week's ${count} ${noun}`,
+              : `Gather this week's ${count} unshared ${noun}`,
           },
           {
             id: 'share',
@@ -191,11 +274,15 @@ class MockPersonIntelligence implements PersonIntelligence {
       }
     }
 
-    // Message: an action step in Messages, bound to the people selection or —
-    // "share these and tell them…" — to the share's recipients.
+    // Message: an action step in Messages, bound to the people selection, or —
+    // "share these and tell them…" — the share's recipients, or failing both,
+    // the person they most recently shared with (the recorded fact, read back).
     if (wantsMessage && apps.includes('messages')) {
       const recipientIds =
-        peopleSelected ?? shareRecipients.map((r) => r.id);
+        peopleSelected ??
+        (shareRecipients.length
+          ? shareRecipients.map((r) => r.id)
+          : this.lastSharedWith(ctx));
       if (recipientIds.length) {
         const recipients = recipientIds.map((id) =>
           resolvePerson(this.personId, id),
@@ -281,10 +368,12 @@ class MockPersonIntelligence implements PersonIntelligence {
     }
 
     if (lower.includes('share') || lower.includes('photo')) {
-      const [top] = this.suggestShares(ctx.owner.gallery, ctx.now);
+      const [top] = this.suggest(ctx).filter(
+        (s) => s.intent === 'share-photos',
+      );
       if (!top) {
         return {
-          text: `${greeting}Nothing new to share right now — check back after your next photo.`,
+          text: `${greeting}Nothing new to share right now — everything recent has already been sent.`,
         };
       }
       const sentences = [

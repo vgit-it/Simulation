@@ -20,13 +20,22 @@ export interface ShareDraft {
   message: string;
 }
 
-/** A proactive thing the assistant offers to do, given the current world. */
+/**
+ * A proactive thing the assistant offers to do, given the current world. A
+ * suggestion is a pre-proposal: tapping it calls `propose(intent, ctx, ids,
+ * payload)` — so it carries exactly the propose inputs, whatever the intent.
+ */
 export interface Suggestion {
   id: string;
   intent: string;
   title: string;
   subtitle: string;
-  photos: Photo[];
+  /** Emoji shown on the suggestion row (defaults per intent in the UI). */
+  icon: string;
+  /** The object ids to propose over (photo ids, person ids, ...). */
+  ids: string[];
+  /** Free-form propose payload (message text, ...). */
+  payload?: Record<string, unknown>;
 }
 
 /** One turn of an open-ended conversation with the assistant. */
@@ -61,8 +70,13 @@ export interface PersonIntelligence {
   draftShare(photos: Photo[]): ShareDraft;
   /** Draft the text of a standalone message to the given recipients. */
   draftMessage(recipients: ResolvedPerson[]): string;
-  /** Proactive suggestions given the person's gallery and the current time. */
-  suggestShares(photos: Photo[], now: Date): Suggestion[];
+  /**
+   * Proactive suggestions given the full situation — the SITUATED entry point:
+   * what's shareable that hasn't been shared, inbound shares worth replying
+   * to, etc. Reads runtime history through the context, never re-suggesting
+   * what the log shows already happened.
+   */
+  suggest(ctx: ContextBundle): Suggestion[];
   /**
    * Reply to a free-form message in the assistant chat, given the full
    * context bundle (owner/device/state/situation) and the conversation so

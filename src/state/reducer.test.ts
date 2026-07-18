@@ -33,6 +33,20 @@ describe('reducer', () => {
     expect(s.facts['ava-chen']).toEqual([{ at: 1, key: 'k', value: 'v' }]);
   });
 
+  it('folds ChatMessage events into per-person history', () => {
+    const turns: SimEvent[] = [
+      { type: 'ChatMessage', at: 1, person: 'ava-chen', role: 'user', text: 'hi' },
+      { type: 'ChatMessage', at: 1, person: 'ava-chen', role: 'assistant', text: 'Hi!' },
+      { type: 'ChatMessage', at: 2, person: 'sam-ruiz', role: 'user', text: 'yo' },
+    ];
+    const s = turns.reduce(
+      (acc, event) => reduce(acc, { kind: 'event', event }),
+      freshState(),
+    );
+    expect(s.chats).toHaveLength(3);
+    expect(s.chats.filter((c) => c.person === 'ava-chen')).toHaveLength(2);
+  });
+
   it('moves the clock on ClockSet', () => {
     const s = reduce(freshState(), {
       kind: 'event',

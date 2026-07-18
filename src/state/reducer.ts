@@ -19,6 +19,14 @@ export interface Fact {
   value: string;
 }
 
+/** Derived record of one assistant-chat turn. */
+export interface ChatTurnRecord {
+  at: number;
+  person: string;
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 /** Derived record of a reminder. */
 export interface Reminder {
   id: string;
@@ -48,6 +56,7 @@ export interface RuntimeState {
   facts: Record<string, Fact[]>; // personId -> facts
   reminders: Reminder[]; // in creation order
   plans: PlanRun[]; // runtime plans, in start order
+  chats: ChatTurnRecord[]; // assistant-chat turns, in order
 }
 
 export function freshState(): RuntimeState {
@@ -58,6 +67,7 @@ export function freshState(): RuntimeState {
     facts: {},
     reminders: [],
     plans: [],
+    chats: [],
   };
 }
 
@@ -98,6 +108,19 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
     }
     case 'ClockSet':
       return { ...state, clock: event.to };
+    case 'ChatMessage':
+      return {
+        ...state,
+        chats: [
+          ...state.chats,
+          {
+            at: event.at,
+            person: event.person,
+            role: event.role,
+            text: event.text,
+          },
+        ],
+      };
     case 'ReminderCreated':
       return {
         ...state,
