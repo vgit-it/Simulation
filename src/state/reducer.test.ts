@@ -33,6 +33,18 @@ describe('reducer', () => {
     expect(s.facts['ava-chen']).toEqual([{ at: 1, key: 'k', value: 'v' }]);
   });
 
+  it('tracks thread reads per person (latest read wins)', () => {
+    const reads: SimEvent[] = [
+      { type: 'ThreadRead', at: 5, person: 'ava-chen', thread: 'ava-chen+sam-ruiz' },
+      { type: 'ThreadRead', at: 3, person: 'ava-chen', thread: 'ava-chen+sam-ruiz' },
+    ];
+    const s = reads.reduce(
+      (acc, event) => reduce(acc, { kind: 'event', event }),
+      freshState(),
+    );
+    expect(s.reads['ava-chen']['ava-chen+sam-ruiz']).toBe(5); // max, not last
+  });
+
   it('folds ChatMessage events into per-person history', () => {
     const turns: SimEvent[] = [
       { type: 'ChatMessage', at: 1, person: 'ava-chen', role: 'user', text: 'hi' },

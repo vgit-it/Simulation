@@ -21,5 +21,7 @@ export {
   plansFor,
   remindersFor,
   selectNow,
+  unreadCountFor,
+  unreadThreadKeys,
 } from './selectors';
 export { StoreProvider, useNow, useStore } from './store';

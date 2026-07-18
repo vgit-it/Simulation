@@ -83,6 +83,28 @@ export function factsFor(state: RuntimeState, personId: string): Fact[] {
   return state.facts[personId] ?? [];
 }
 
+/**
+ * The keys of a person's threads whose newest message is inbound and newer
+ * than their last ThreadRead of that thread — i.e. what deserves a badge.
+ */
+export function unreadThreadKeys(
+  state: RuntimeState,
+  personId: string,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const t of inboxThreads(state, personId)) {
+    if (t.last.from === personId) continue; // your own message can't be unread
+    const readAt = state.reads[personId]?.[t.key] ?? -1;
+    if (t.last.at > readAt) keys.add(t.key);
+  }
+  return keys;
+}
+
+/** How many unread threads a person has (the Messages badge count). */
+export function unreadCountFor(state: RuntimeState, personId: string): number {
+  return unreadThreadKeys(state, personId).size;
+}
+
 /** A person's assistant-chat history (oldest first — conversation order). */
 export function chatHistoryFor(
   state: RuntimeState,

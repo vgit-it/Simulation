@@ -17,6 +17,28 @@ describe('scenario step runner', () => {
     expect(result.screen).toBeUndefined();
   });
 
+  it('resolves a message step through the send-message capability', () => {
+    const state = freshState();
+    const result = resolveStep(
+      {
+        kind: 'message',
+        person: 'maya-osei',
+        to: ['ava-chen'],
+        text: 'Brunch tomorrow?',
+      },
+      state,
+    );
+    expect(result.screen).toEqual({ kind: 'app', appId: 'messages' });
+    expect(result.focus?.personId).toBe('maya-osei');
+    const sent = result.events.find((e) => e.type === 'MessageSent');
+    expect(sent).toMatchObject({
+      from: 'maya-osei',
+      to: ['ava-chen'],
+      body: 'Brunch tomorrow?',
+      intent: 'send-message',
+    });
+  });
+
   it('resolves a focus step to a screen + POV, with AppOpened only for app screens', () => {
     const state = freshState();
 

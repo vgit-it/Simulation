@@ -53,5 +53,20 @@ export function resolveStep(step: ScenarioStep, state: RuntimeState): StepResult
         screen: { kind: 'app', appId: 'photos' },
       };
     }
+
+    case 'message': {
+      const owner = getPerson(step.person);
+      const deviceId = step.device ?? owner.devices[0].id;
+      const session = { personId: step.person, deviceId };
+      const ctx = assembleContext(session, state, { app: 'messages' });
+      const proposal = propose('send-message', ctx, step.to, {
+        text: step.text,
+      });
+      return {
+        events: proposal.events,
+        focus: session,
+        screen: { kind: 'app', appId: 'messages' },
+      };
+    }
   }
 }

@@ -57,6 +57,7 @@ export interface RuntimeState {
   reminders: Reminder[]; // in creation order
   plans: PlanRun[]; // runtime plans, in start order
   chats: ChatTurnRecord[]; // assistant-chat turns, in order
+  reads: Record<string, Record<string, number>>; // personId -> threadKey -> last read at
 }
 
 export function freshState(): RuntimeState {
@@ -68,6 +69,7 @@ export function freshState(): RuntimeState {
     reminders: [],
     plans: [],
     chats: [],
+    reads: {},
   };
 }
 
@@ -108,6 +110,19 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
     }
     case 'ClockSet':
       return { ...state, clock: event.to };
+    case 'ThreadRead': {
+      const mine = state.reads[event.person] ?? {};
+      return {
+        ...state,
+        reads: {
+          ...state.reads,
+          [event.person]: {
+            ...mine,
+            [event.thread]: Math.max(mine[event.thread] ?? -1, event.at),
+          },
+        },
+      };
+    }
     case 'ChatMessage':
       return {
         ...state,
