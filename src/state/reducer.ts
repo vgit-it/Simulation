@@ -25,6 +25,8 @@ export interface ChatTurnRecord {
   person: string;
   role: 'user' | 'assistant';
   text: string;
+  /** The conversation thread this turn belongs to (absent on old logs). */
+  session?: string;
 }
 
 /** Derived record of a reminder. */
@@ -141,6 +143,7 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
             person: event.person,
             role: event.role,
             text: event.text,
+            session: event.session,
           },
         ],
       };

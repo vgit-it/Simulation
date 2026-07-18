@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AssistantControlProvider } from './assistant/control';
 import { useAutopilot } from './autopilot';
 import { SessionProvider } from './session';
 import { StoreProvider } from './state';
@@ -21,11 +22,13 @@ function Stage() {
 
   return (
     <ScreenProvider value={{ screen, setScreen }}>
-      <div className="flex min-h-full flex-col items-center justify-center bg-[#05070d] p-4">
-        <Phone screen={screen} onScreenChange={setScreen} />
-        <DevBar onScreenChange={setScreen} />
-        <ScenarioBar screen={screen} onScreenChange={setScreen} />
-      </div>
+      <AssistantControlProvider>
+        <div className="flex min-h-full flex-col items-center justify-center bg-[#05070d] p-4">
+          <Phone screen={screen} onScreenChange={setScreen} />
+          <DevBar onScreenChange={setScreen} />
+          <ScenarioBar screen={screen} onScreenChange={setScreen} />
+        </div>
+      </AssistantControlProvider>
     </ScreenProvider>
   );
 }

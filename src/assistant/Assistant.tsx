@@ -12,6 +12,7 @@ import { PlanSheet } from '../plans/PlanSheet';
 import { usePlanRunner, type ActivePlan } from '../plans/usePlanRunner';
 import type { Plan, Supervision } from '../plans/types';
 import { useSession } from '../session';
+import { useAssistantControl } from './control';
 import { chatHistoryFor, messagesFrom, plansFor, useStore } from '../state';
 import {
   EXIT,
@@ -29,11 +30,16 @@ import { resolvePerson } from '../world';
  * now return a runnable multi-step Plan, and a running activity feed. Plans
  * execute through the shared runner, which drives the phone app-by-app while a
  * progress HUD narrates the steps.
+ *
+ * Conversations are threads: the sheet is bound to the AssistantControl
+ * session — the FAB mints a fresh one (empty conversation), the Assistant app
+ * resumes an existing one — and every chat turn is stamped with its id.
  */
 export function Assistant() {
   const { session } = useSession();
   const { state, dispatch } = useStore();
-  const [open, setOpen] = useState(false);
+  const control = useAssistantControl();
+  const open = control.sessionId !== null;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
   const [chatInput, setChatInput] = useState('');
@@ -52,6 +58,14 @@ export function Assistant() {
   if (runner.active) lastRunRef.current = runner.active;
   const hud = useMountTransition(Boolean(runner.active), EXIT.hud);
 
+  // Switching conversations resets the transient chrome: a lingering dry-run
+  // card or typing beat belongs to the thread that produced it.
+  useEffect(() => {
+    setLastRequest(null);
+    setThinking(false);
+    clearTimeout(thinkingTimer.current);
+  }, [control.sessionId]);
+
   // Suggestions are situated: the brain reads the runtime log through the
   // context (already-shared photos drop out; inbound shares surface a reply).
   const suggestions = useMemo(() => {
@@ -60,8 +74,15 @@ export function Assistant() {
   }, [session, state]);
   const activity = messagesFrom(state, session.personId);
   const planRuns = plansFor(state, session.personId);
-  // Chat history is event-log state: it survives reloads and POV round-trips.
-  const chatHistory = chatHistoryFor(state, session.personId);
+  // Chat history is event-log state, scoped to the OPEN conversation thread: a
+  // freshly minted session id matches no turns, so the FAB always starts a
+  // clean conversation; resuming a thread from the Assistant app shows its
+  // history (and feeds it to the brain).
+  const chatHistory = chatHistoryFor(
+    state,
+    session.personId,
+    control.sessionId ?? undefined,
+  );
   // While the thinking beat runs, the just-dispatched assistant reply stays
   // hidden behind the typing dots (the log already has it — reveal only).
   const visibleHistory =
@@ -77,7 +98,8 @@ export function Assistant() {
   function onChatSubmit(e: FormEvent) {
     e.preventDefault();
     const message = chatInput.trim();
-    if (!message) return;
+    const thread = control.sessionId;
+    if (!message || !thread) return;
     const ctx = assembleContext(session, state, {});
     const reply = intelligenceFor(session.personId).respond(
       ctx,
@@ -86,13 +108,21 @@ export function Assistant() {
     );
     const at = state.clock;
     const person = session.personId;
-    dispatch({ type: 'ChatMessage', at, person, role: 'user', text: message });
+    dispatch({
+      type: 'ChatMessage',
+      at,
+      person,
+      role: 'user',
+      text: message,
+      session: thread,
+    });
     dispatch({
       type: 'ChatMessage',
       at,
       person,
       role: 'assistant',
       text: reply.text,
+      session: thread,
     });
     setChatInput('');
     // A task-shaped reply carries a plan. PlanProposed lands BEFORE any
@@ -119,7 +149,7 @@ export function Assistant() {
         if (reply.llmRequest) setLastRequest(reply.llmRequest);
         if (reply.plan) {
           setPreviewPlan(reply.plan);
-          setOpen(false);
+          control.close();
         }
       },
       prefersReducedMotion() ? 0 : THINKING_BEAT_MS,
@@ -154,7 +184,7 @@ export function Assistant() {
         style={{ animationDelay: '350ms' }}
       >
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => control.open()}
           aria-label="Open assistant"
           className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-fab transition duration-200 ease-out-soft active:scale-90 ${
             open || runner.active ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
@@ -184,7 +214,7 @@ export function Assistant() {
 
       <Sheet
         open={open}
-        onDismiss={() => setOpen(false)}
+        onDismiss={control.close}
         dismissLabel="Close assistant"
         maxHeightClass="max-h-[85%]"
       >
@@ -194,7 +224,7 @@ export function Assistant() {
             <span className="inline-block animate-breathe">✨</span> Assistant
           </h2>
           <button
-            onClick={() => setOpen(false)}
+            onClick={control.close}
             className="type-label rounded-ds-full bg-text/10 px-space-md py-1 text-muted transition duration-150 active:scale-95"
           >
             Close
@@ -230,9 +260,12 @@ export function Assistant() {
         )}
 
         <h3 className="type-caption mb-space-sm mt-space-xl text-muted">Ask</h3>
-        <p className="type-caption mb-space-sm text-muted/70">
-          Try “share these” after selecting photos, or “share this week's photos”.
-        </p>
+        {chatHistory.length === 0 && (
+          <p className="type-caption mb-space-sm text-muted/70">
+            New conversation — try “share these” after selecting photos, or
+            “share this week's photos”.
+          </p>
+        )}
         {visibleHistory.length > 0 && (
           <div className="mb-space-sm flex flex-col gap-space-sm">
             {visibleHistory.map((turn, i) => (

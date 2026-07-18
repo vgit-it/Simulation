@@ -10,9 +10,10 @@ export type {
   StoreAction,
 } from './reducer';
 export { freshState, hydrate, reduce } from './reducer';
-export type { Thread } from './selectors';
+export type { ChatSession, Thread } from './selectors';
 export {
   chatHistoryFor,
+  chatSessionsFor,
   factsFor,
   inboxThreads,
   messagesFrom,

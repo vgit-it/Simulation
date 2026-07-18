@@ -58,6 +58,13 @@ export interface ChatMessageEvent {
   person: string;
   role: 'user' | 'assistant';
   text: string;
+  /**
+   * The conversation thread this turn belongs to. A fresh id is minted every
+   * time the assistant is invoked outside an existing thread (the FAB), so
+   * each request is its own conversation; resuming a thread from the
+   * Assistant app reuses its id. Absent on logs predating threads.
+   */
+  session?: string;
 }
 
 /** A reminder a person created (directly or via the assistant). */

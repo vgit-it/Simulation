@@ -114,7 +114,7 @@ npm run typecheck  # types only
 
 ```
 world/                         # CONTENT — authored, no code
-  apps/<app>.md                # app definitions: photos, messages, contacts, reminders
+  apps/<app>.md                # app definitions: photos, messages, contacts, reminders, assistant
   people/<person>/             # six residents (ava, sam, maya, leo, nadia, theo)
     profile.md                 # id, name, avatar, traits, behaviors
     contacts.md                # (optional; contacts are now derived — see below)
@@ -150,7 +150,8 @@ src/
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
-  assistant/                   # persistent assistant: suggestions + activity feed
+  assistant/                   # persistent assistant: suggestions + threaded chat + activity feed
+    control.tsx                # AssistantControlProvider: sheet open/close + the bound conversation thread
   autopilot/                   # resident behaviors: dueAutopilotActions + useAutopilot (world acts back)
   plans/                       # runtime plans: brain-generated cross-app step sequences
     types.ts                   # Plan + PlanStep (navigate/gather vs action steps)
@@ -174,6 +175,7 @@ src/
     messages/                  # inbox of threads (MessagesApp) + Thread view w/ reply composer
     contacts/                  # derived contacts graph; tap to select a person (ContactsApp)
     reminders/                 # to-dos from ReminderCreated events + direct add (RemindersApp)
+    assistant/                 # conversation threads with the assistant; tap to resume one (AssistantApp)
   App.tsx                      # providers + Stage (owns screen state, mounts Phone/DevBar/ScenarioBar)
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
@@ -705,7 +707,7 @@ precisely what the model would see. Everything that isn't the decider seam
 stays fully usable — and token-free — in dry-run mode. The mock remains the
 default provider (principle 8).
 
-### Agent harness VII — research instrumentation ✅ (current, pre-M5)
+### Agent harness VII — research instrumentation ✅ (pre-M5)
 
 Roadmap track ⑥: the prototype is now an instrument. The event log is the
 telemetry substrate; a parallel **trace** adds the human-side measurements.
@@ -733,6 +735,34 @@ telemetry substrate; a parallel **trace** adds the human-side measurements.
 Deferred: an in-app comparison view (the analysis lives in the export for
 now), per-proposal edit telemetry (which fields were amended), multi-session
 aggregation.
+
+### Assistant app — conversation threads ✅ (current, pre-M5)
+
+Assistant conversations are now threads, and the phone has an **Assistant
+app** listing them (installed on all six phones).
+
+- **Each request is its own conversation**: `ChatMessage` events carry a
+  `session` id. Invoking the assistant from anywhere OTHER than an existing
+  thread — the FAB, or the app's **New** button — mints a fresh id
+  (`AssistantControlProvider`, `src/assistant/control.tsx`), so the sheet
+  opens on an empty conversation; an unused id leaves no trace (a thread only
+  exists once a turn is dispatched with it). Turns recorded before threads
+  existed collapse into one legacy conversation.
+- **The Assistant app** (`src/apps/assistant/`) is a window onto the record:
+  `chatSessionsFor` groups a person's turns into threads (title = first user
+  message, preview = last turn, newest activity first — sim-time ties break
+  by log order, since the clock may not move between asks). Tapping a thread
+  **resumes** it: the sheet opens bound to that session, its history renders,
+  and `respond()` receives it (the mock's greeting proves the seam: fresh
+  threads greet, resumed ones don't). It declares no actions — chat, plans,
+  and proposals all still live in the persistent assistant surface.
+- The sheet's chat is session-scoped end-to-end: displayed turns, the history
+  fed to the brain, and the dry-run `buildLLMRequest` messages all derive from
+  `chatHistoryFor(state, person, session)`.
+
+Deferred: cross-thread memory (each conversation is independent context for
+the brain), thread deletion/renaming, surfacing plan runs inside the thread
+that spawned them.
 
 ### M5 — Real LLM provider (remaining)
 
