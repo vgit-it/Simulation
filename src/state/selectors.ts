@@ -105,12 +105,69 @@ export function unreadCountFor(state: RuntimeState, personId: string): number {
   return unreadThreadKeys(state, personId).size;
 }
 
-/** A person's assistant-chat history (oldest first — conversation order). */
+/**
+ * A person's assistant-chat history (oldest first — conversation order).
+ * Scoped to one conversation thread when `session` is given — the fresh-vs-
+ * resumed distinction: a newly minted session id matches nothing, so the
+ * conversation starts empty.
+ */
 export function chatHistoryFor(
   state: RuntimeState,
   personId: string,
+  session?: string,
 ): ChatTurnRecord[] {
-  return state.chats.filter((c) => c.person === personId);
+  const mine = state.chats.filter((c) => c.person === personId);
+  if (session === undefined) return mine;
+  return mine.filter((c) => (c.session ?? LEGACY_SESSION) === session);
+}
+
+/** The bucket for chat turns recorded before threads existed. */
+export const LEGACY_SESSION = 'chat-legacy';
+
+/** One assistant conversation: the turns sharing a session id. */
+export interface ChatSession {
+  id: string;
+  /** The conversation's title: its first user message. */
+  title: string;
+  /** Turns oldest-first. */
+  turns: ChatTurnRecord[];
+  /** The most recent turn (list preview / sort key). */
+  last: ChatTurnRecord;
+}
+
+/**
+ * A person's assistant conversations, newest-activity first. Every invocation
+ * of the assistant outside an existing thread minted a fresh session id, so
+ * each request groups into its own thread; pre-thread turns collapse into one
+ * legacy conversation.
+ */
+export function chatSessionsFor(
+  state: RuntimeState,
+  personId: string,
+): ChatSession[] {
+  const byId = new Map<string, ChatTurnRecord[]>();
+  const lastSeq = new Map<string, number>(); // log recency, the tie-breaker
+  chatHistoryFor(state, personId).forEach((turn, i) => {
+    const id = turn.session ?? LEGACY_SESSION;
+    (byId.get(id) ?? byId.set(id, []).get(id)!).push(turn);
+    lastSeq.set(id, i);
+  });
+  const sessions: ChatSession[] = [];
+  for (const [id, turns] of byId) {
+    const firstUser = turns.find((t) => t.role === 'user');
+    sessions.push({
+      id,
+      title: firstUser?.text ?? turns[0].text,
+      turns,
+      last: turns[turns.length - 1],
+    });
+  }
+  // Newest activity first. The sim clock often stands still between requests,
+  // so equal timestamps fall back to log order — later in the log is newer.
+  return sessions.sort(
+    (a, b) =>
+      b.last.at - a.last.at || lastSeq.get(b.id)! - lastSeq.get(a.id)!,
+  );
 }
 
 /** A person's reminders (newest first). */
