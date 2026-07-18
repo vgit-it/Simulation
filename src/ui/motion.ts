@@ -10,7 +10,12 @@ export const EXIT = {
   app: 250,
   lock: 350,
   fade: 200,
+  /** Plan HUD: a 450ms readable hold (the completion beat) + 250ms fade. */
+  hud: 700,
 } as const;
+
+/** How long the assistant's typing-dots beat runs before a reply reveals. */
+export const THINKING_BEAT_MS = 700;
 
 export function prefersReducedMotion(): boolean {
   return (

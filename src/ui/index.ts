@@ -1,4 +1,4 @@
-export { EXIT, prefersReducedMotion } from './motion';
+export { EXIT, THINKING_BEAT_MS, prefersReducedMotion } from './motion';
 export { useMountTransition } from './useMountTransition';
 export { Sheet } from './Sheet';
 export { OverlayLayer, OverlayPortalContext } from './OverlayLayer';
