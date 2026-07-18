@@ -40,7 +40,9 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
   }
 
   if (!shown) return null;
-  const canSend = shown.recipients.length > 0;
+  const canSend = !shown.invalidReason;
+  const confirmLabel = shown.confirmLabel ?? 'Send';
+  const doneLabel = confirmLabel === 'Send' ? '✓ Sent' : '✓ Done';
 
   return (
     <Sheet open={proposal !== null} onDismiss={sent ? () => {} : onCancel}>
@@ -84,9 +86,9 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
           }`}
         >
           {sent ? (
-            <span className="inline-block animate-pop">✓ Sent</span>
+            <span className="inline-block animate-pop">{doneLabel}</span>
           ) : (
-            'Send'
+            confirmLabel
           )}
         </button>
       </div>

@@ -3,6 +3,7 @@ import type { AppScreenProps } from './types';
 import { PhotosApp } from './photos/PhotosApp';
 import { MessagesApp } from './messages/MessagesApp';
 import { ContactsApp } from './contacts/ContactsApp';
+import { RemindersApp } from './reminders/RemindersApp';
 
 /**
  * App registry: maps an app id (from world/apps/*.md) to the React renderer that
@@ -12,4 +13,5 @@ export const appRegistry: Record<string, ComponentType<AppScreenProps>> = {
   photos: PhotosApp,
   messages: MessagesApp,
   contacts: ContactsApp,
+  reminders: RemindersApp,
 };

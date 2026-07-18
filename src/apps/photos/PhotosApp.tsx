@@ -64,7 +64,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
     const photos = owner.gallery.filter((p) => picked.has(p.id));
     if (!photos.length) return;
     const ctx = assembleContext(session, state, { app: 'photos' });
-    setProposal(propose('share-photos', ctx, photos));
+    setProposal(propose('share-photos', ctx, photos.map((p) => p.id)));
   }
 
   // Flat index across groups so the entrance stagger sweeps the whole grid.

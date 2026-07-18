@@ -43,7 +43,7 @@ export function Assistant() {
     const ctx = assembleContext(session, state, {
       photoIds: s.photos.map((p) => p.id),
     });
-    setProposal(propose(s.intent, ctx, s.photos));
+    setProposal(propose(s.intent, ctx, s.photos.map((p) => p.id)));
   }
 
   function onChatSubmit(e: FormEvent) {

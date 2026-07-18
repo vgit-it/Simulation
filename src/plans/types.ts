@@ -21,6 +21,11 @@ export interface PlanStep {
   intent?: string;
   /** The object ids an action/gather step operates on (e.g. photo ids). */
   ids?: string[];
+  /**
+   * Free-form inputs the planner drafted for the action (message text, a
+   * reminder title) — passed through to the capability's `propose`.
+   */
+  payload?: Record<string, unknown>;
 }
 
 export interface Plan {

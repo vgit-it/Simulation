@@ -114,7 +114,7 @@ npm run typecheck  # types only
 
 ```
 world/                         # CONTENT — authored, no code
-  apps/<app>.md                # app definitions: photos, messages, contacts
+  apps/<app>.md                # app definitions: photos, messages, contacts, reminders
   people/<person>/             # six residents (ava, sam, maya, leo, nadia, theo)
     profile.md                 # id, name, avatar, traits, behaviors
     contacts.md                # (optional; contacts are now derived — see below)
@@ -167,8 +167,9 @@ src/
     registry.ts                # appId -> React renderer
     types.ts                   # AppScreenProps
     photos/                    # the Photos app (gallery + detail + share)
-    messages/                  # inbox of threads (MessagesApp) + Thread view
-    contacts/                  # read-only derived contacts graph (ContactsApp)
+    messages/                  # inbox of threads (MessagesApp) + Thread view w/ reply composer
+    contacts/                  # derived contacts graph; tap to select a person (ContactsApp)
+    reminders/                 # to-dos from ReminderCreated events + direct add (RemindersApp)
   App.tsx                      # providers + Stage (owns screen state, mounts Phone/DevBar/ScenarioBar)
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
@@ -235,7 +236,11 @@ bypass the interface.
 (`world/apps/<app>.md` — id, label, and an optional `selection: {kind, min}`
 saying what must be selected for it to apply), then register a matching
 `propose` implementation in `src/actions/capabilities.ts` (one entry in
-`implementations`). The registry is built by joining the two at load and fails
+`implementations`). A propose impl receives `(ctx, ids, payload?)` — `ids` are
+the object ids acted on, `payload` carries free-form inputs (message text, a
+reminder title) drafted by the brain or typed by the user; a `Proposal` that
+can't commit sets `invalidReason` (and may override the confirm button via
+`confirmLabel`). The registry is built by joining the two at load and fails
 loudly on any mismatch (declared-but-unimplemented or implemented-but-
 undeclared). Add an event to `SimEvent` (`src/state/events.ts`) + reducer
 handling if it changes derived state; render its `Proposal` (reuse
@@ -250,6 +255,10 @@ picked to the session (`setSelection({ app, kind, ids })`, `src/session`);
 automatically, so any decider sees "what's selected" without callers plumbing
 ids. Selection clears on person/device switch and when the app unmounts; pass
 an explicit `selection: null` in a `Situation` to override it for one call.
+Current selection kinds: `photos` (Photos multi-select) and `people` (an open
+thread's participants in Messages; a tapped contact in Contacts) — the kind is
+what capability `selection:` specs match against, so where it was selected
+doesn't matter.
 
 **Add an assistant suggestion:** extend `suggestShares` (or a sibling method) on
 the brain (`src/intelligence/mock.ts`) to return `Suggestion`s; the assistant
@@ -484,6 +493,74 @@ downstream — preview, execution, approval, persistence — already works.
 Deferred: `PlanStepCompleted` events (per-step persistence), branching/
 conditional plans, an "auto-approve" supervision level that commits action steps
 without pausing, plans that span multiple people's devices.
+
+### Agent harness III — capability breadth ✅ (current, pre-M5)
+
+Roadmap stage ①: plans became genuinely cross-app by widening the capability
+vocabulary — no plan-engine edits, exactly as designed.
+
+- **`send-message`** (Messages): replying is live, closing the M3 deferral. The
+  thread composer and the assistant's plan step share one capability — a human
+  reply commits directly (you don't approve your own words); an assistant
+  message pauses for approval. Propose impls gained a `payload` (free-form
+  inputs: message text, reminder title), `Proposal` gained
+  `invalidReason`/`confirmLabel`, and `propose()` is now ids+payload based.
+- **Reminders** (new app + `create-reminder`): the first non-message effect.
+  `ReminderCreated` events → derived `reminders` + `remindersFor`; reminders
+  can reference photos (`related` ids render as thumbnails). No selection
+  requirement — content arrives via payload.
+- **`people` selections**: opening a thread selects its participants; tapping a
+  contact selects that person. Capability specs match on selection *kind*, so
+  "message *them*" binds from either app.
+- **Composite plans**: `plan()` composes share/message/reminder steps from
+  request keywords + the selection kind, gated per-step on installed apps.
+  "Share these and remind me to print one" → a 4-step plan across 3 apps, with
+  the reminder title extracted from the request; "share these and tell them…"
+  chains the message to the share's recipients (and skips the redundant
+  confirm hop).
+
+### Roadmap — enhancement tracks (post-harness II)
+
+Six tracks, ordered by leverage. Tracks 1–4 and 6 are staged below; track 5 is
+M5 and track "shells" is M6. Each stage is one PR-sized change.
+
+1. **Capability breadth** — make plans genuinely cross-app. `send-message`
+   (reply from the inbox, closing the M3 deferral), a **Reminders** app with
+   `create-reminder` (the cheapest genuinely-different effect), and new
+   selection kinds (a thread or contact, not just photos) so "message *this*
+   group" can bind. Plans get composite: "share these with Maya and remind me
+   to print one" spans three apps.
+2. **Supervision & trust** — the heart of the research question. Per-plan
+   supervision levels at the `PlanSheet` (confirm each action / confirm once /
+   just do it), **editable proposals** (tweak recipients/message before Send),
+   plan editing (strike a step before running), and interrupt-&-takeover
+   (detect the user doing a paused step manually — the step's event is already
+   in the log — and skip ahead).
+3. **Context depth** — a situated brain. Use the facts it already records
+   (`last-shared-with` is written and never read; don't re-suggest
+   already-shared photos via `messagesWithAttachment`), persist chat history as
+   events, and react to **inbound** shares ("Sam sent 2 photos; reply?").
+4. **World dynamics** — a world that acts back. Resident autopilot behaviors
+   (profiles' parsed-but-unread `behaviors:` field; e.g. Sam replies +2h sim
+   time after a share), unread badges (`ThreadRead` event, deferred since M3),
+   and a `message` scenario step kind.
+5. **M5 — real LLM brain** (below), plus an **evaluation harness**: fixtures of
+   (world state, selection, request) → expected plan, with the mock as oracle,
+   so LLM decomposition quality is measured, not eyeballed.
+6. **Research instrumentation** — turn the prototype into an instrument. The
+   event log is the telemetry substrate: record plan proposed/edited/approved/
+   cancelled + per-step timing, compare manual-path vs assistant-path for the
+   same task (taps, seconds), add a session-export. Fold in alongside the first
+   real user-drive session.
+
+**Staged sequence:** ① capability breadth (Reminders + `send-message` + new
+selection kinds) ✅ (landed as harness III) → ② supervision levels + editable
+proposals → ③ situated
+brain → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
+(⑥) alongside whichever stage runs the first study. Rationale: supervision is
+only interesting once plans have multiple real actions to supervise; the LLM
+goes late because every earlier track makes its job better-defined while the
+swap stays cheap by design.
 
 ### M5 — Real LLM provider
 
