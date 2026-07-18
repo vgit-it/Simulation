@@ -25,8 +25,16 @@ export function DevBar({ onScreenChange }: DevBarProps) {
   const { session, setDevice, setPerson } = useSession();
   const devices = useHeroDevices();
   const now = useNow();
-  const { reset } = useStore();
+  const { state, dispatch, reset } = useStore();
   const people = Object.values(world.people);
+
+  function advanceClock(hours: number) {
+    dispatch({
+      type: 'ClockSet',
+      at: state.clock,
+      to: state.clock + hours * 3_600_000,
+    });
+  }
 
   // Embodying a different person is "picking up their phone": start from the
   // lock screen so the POV switch reads clearly.
@@ -57,6 +65,13 @@ export function DevBar({ onScreenChange }: DevBarProps) {
 
       <div className="flex flex-wrap items-center justify-center gap-2">
         <span className="rounded-full bg-white/5 px-3 py-1">🕒 {timeLabel(now)}</span>
+        <button
+          onClick={() => advanceClock(1)}
+          className="rounded-full bg-white/5 px-3 py-1 transition-colors duration-150 hover:bg-white/10"
+          title="Advance the sim clock one hour (resident autopilot may act)"
+        >
+          +1h
+        </button>
 
         {devices.length > 1 &&
           devices.map((d) => (

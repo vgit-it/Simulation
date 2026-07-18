@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { freshState, reduce, type RuntimeState } from './reducer';
-import { inboxThreads, messagesInvolving } from './selectors';
+import { inboxThreads, messagesInvolving, unreadCountFor } from './selectors';
 import type { SimEvent } from './events';
 
 function withMessages(...msgs: SimEvent[]): RuntimeState {
@@ -54,5 +54,26 @@ describe('inbox selectors', () => {
     expect(threads).toHaveLength(1);
     expect(threads[0].messages.map((m) => m.id)).toEqual(['m1', 'm2']);
     expect(threads[0].last.id).toBe('m2');
+  });
+
+  it('counts unread threads and clears them on ThreadRead', () => {
+    const state = withMessages(share);
+    // Sam has one unread thread; the sender has none (own message).
+    expect(unreadCountFor(state, 'sam-ruiz')).toBe(1);
+    expect(unreadCountFor(state, 'ava-chen')).toBe(0);
+
+    const key = inboxThreads(state, 'sam-ruiz')[0].key;
+    const read = reduce(state, {
+      kind: 'event',
+      event: { type: 'ThreadRead', at: 1000, person: 'sam-ruiz', thread: key },
+    });
+    expect(unreadCountFor(read, 'sam-ruiz')).toBe(0);
+
+    // A newer inbound message re-badges it.
+    const followUp = reduce(read, {
+      kind: 'event',
+      event: { ...share, id: 'm3', at: 3000 } as SimEvent,
+    });
+    expect(unreadCountFor(followUp, 'sam-ruiz')).toBe(1);
   });
 });

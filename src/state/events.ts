@@ -42,6 +42,15 @@ export interface ClockSetEvent {
   to: number; // new sim epoch ms
 }
 
+/** A person opened (read) a message thread. */
+export interface ThreadReadEvent {
+  type: 'ThreadRead';
+  at: number;
+  person: string;
+  /** The thread key (its sorted participant set joined with '+'). */
+  thread: string;
+}
+
 /** One turn of a person's conversation with their assistant. */
 export interface ChatMessageEvent {
   type: 'ChatMessage';
@@ -88,6 +97,7 @@ export type SimEvent =
   | FactRecordedEvent
   | AppOpenedEvent
   | ClockSetEvent
+  | ThreadReadEvent
   | ChatMessageEvent
   | ReminderCreatedEvent
   | PlanStartedEvent

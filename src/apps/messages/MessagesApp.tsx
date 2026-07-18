@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '../../session';
-import { inboxThreads, useStore } from '../../state';
+import { inboxThreads, unreadThreadKeys, useStore } from '../../state';
 import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
 import { resolveAsset, resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
@@ -23,9 +23,13 @@ function timeLabel(at: number): string {
  */
 export function MessagesApp({ owner, onClose }: AppScreenProps) {
   const { setSelection } = useSession();
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const threads = useMemo(
     () => inboxThreads(state, owner.id),
+    [state, owner.id],
+  );
+  const unread = useMemo(
+    () => unreadThreadKeys(state, owner.id),
     [state, owner.id],
   );
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -33,6 +37,21 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
   const openThread = openKey
     ? threads.find((t) => t.key === openKey)
     : undefined;
+
+  // Reading is an event: opening a thread (or new messages arriving while it's
+  // open) records ThreadRead, which clears the badge everywhere.
+  const openLastAt = openThread?.last.at;
+  useEffect(() => {
+    if (!openKey || openLastAt === undefined) return;
+    dispatch({
+      type: 'ThreadRead',
+      at: state.clock,
+      person: owner.id,
+      thread: openKey,
+    });
+    // Keyed on the thread + its newest message, not the whole state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey, openLastAt, owner.id]);
 
   // The open thread's participants ARE the selection — "reply to them" /
   // "share these with them" binds to whoever this conversation is with.
@@ -78,6 +97,7 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
               );
               const names = people.map((p) => p.name).join(', ');
               const outgoing = t.last.from === owner.id;
+              const isUnread = unread.has(t.key);
               const previewAssets = t.last.attachments
                 .slice(0, 3)
                 .map((assetId) => resolveAsset(t.last.from, assetId))
@@ -90,10 +110,19 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
                   className="flex animate-rise items-center gap-space-md rounded-card px-space-md py-space-md text-left transition-colors duration-150 active:bg-text/5"
                   style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
                 >
-                  <Avatar emoji={people[0]?.avatar ?? '💬'} />
+                  <span className="relative">
+                    <Avatar emoji={people[0]?.avatar ?? '💬'} />
+                    {isUnread && (
+                      <span className="absolute -right-0.5 -top-0.5 h-3 w-3 animate-pop rounded-full bg-accent ring-2 ring-bg" />
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-space-sm">
-                      <span className="type-body truncate font-medium">
+                      <span
+                        className={`type-body truncate ${
+                          isUnread ? 'font-semibold text-text' : 'font-medium'
+                        }`}
+                      >
                         {names}
                       </span>
                       <span className="type-caption shrink-0 text-muted">

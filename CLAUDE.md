@@ -148,6 +148,7 @@ src/
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
   assistant/                   # persistent assistant: suggestions + activity feed
+  autopilot/                   # resident behaviors: dueAutopilotActions + useAutopilot (world acts back)
   plans/                       # runtime plans: brain-generated cross-app step sequences
     types.ts                   # Plan + PlanStep (navigate/gather vs action steps)
     executor.ts                # resolvePlanStep + shared step primitives (also used by scenarios)
@@ -284,13 +285,32 @@ log is persisted automatically, so anything you record survives reloads.
 
 **Add a scenario:** author `world/scenarios/<id>.md` with `id`, `name`,
 `description`, and a `steps:` list of `clock` (advance the sim clock), `focus`
-(cut to a person's phone on `locked`/`home`/`{app: <id>}`), or `share` (script
-a `propose('share-photos', ctx, photos)` → `commit` for that person's own
-gallery photos). It appears in the `ScenarioBar` picker automatically — no code.
-`resolveStep(step, state)` (`src/scenarios/runner.ts`) is the pure function
-turning one step into events + where to focus; `ScenarioBar` dispatches them
-and drives `session.setPerson`/`setDevice` + the lifted `Phone` screen, the
-same levers `DevBar` exposes to a human.
+(cut to a person's phone on `locked`/`home`/`{app: <id>}`), `share` (script
+a `propose('share-photos', …)` → `commit` for that person's own gallery
+photos), or `message` (script `propose('send-message', …)` — a person texts
+`to:` recipients `text:`). It appears in the `ScenarioBar` picker
+automatically — no code. `resolveStep(step, state)`
+(`src/scenarios/runner.ts`) is the pure function turning one step into events +
+where to focus; `ScenarioBar` dispatches them and drives
+`session.setPerson`/`setDevice` + the lifted `Phone` screen, the same levers
+`DevBar` exposes to a human. Clock steps can wake resident autopilot (below) —
+time passing IS a world event.
+
+**Give a resident autopilot:** add `auto-reply: { delay-hours: N, message:
+"…" }` under `behaviors:` in their profile (`world/people/<id>/profile.md`).
+While they are NOT embodied, any inbound share to them draws that reply N sim
+hours after the share — dispatched by `useAutopilot` (`src/autopilot`), which
+resolves due behaviors (`dueAutopilotActions`, pure + tested) through the same
+`send-message` capability a human reply uses, re-stamped to the due time.
+Embodying a person suspends their autopilot ("you picked up their phone").
+Replies only trigger on messages with attachments, so two auto-repliers can't
+ping-pong forever.
+
+**Unread badges:** opening a thread dispatches `ThreadRead`; `unreadThreadKeys`
+/ `unreadCountFor` (`src/state/selectors.ts`) derive what's unread (newest
+message inbound + newer than your last read). The Messages home-icon badge and
+inbox dots read these — an autopilot reply while you're elsewhere badges the
+icon, exactly like a real phone.
 
 **How runtime plans work (no authoring needed):** a plan is a scenario the
 brain writes on the fly. `brain.plan(ctx, request)`
@@ -576,6 +596,30 @@ what it offers reflects what has actually happened.
   `chatHistoryFor`; the Assistant dispatches each turn, so conversations
   survive reload/POV switches and feed `respond()` as real history.
 
+### Agent harness VI — world dynamics ✅ (current, pre-M5)
+
+Roadmap stage ④: a world that acts back, without you embodying it.
+
+- **Resident autopilot** (`src/autopilot`): profiles' `behaviors:` field is
+  finally read — a typed `auto-reply: {delay-hours, message}` behavior
+  (schema'd in `src/world/schema.ts`; authored for Sam 2h / Maya 4h). The pure
+  `dueAutopilotActions(state, embodiedId)` resolves due replies through the
+  same `send-message` capability humans use, re-stamped to the due sim time;
+  `useAutopilot` (mounted in Stage) dispatches whatever's due each time state
+  changes, and its idempotence is the loop guard. The embodied person never
+  autopilots; only attachment-bearing messages trigger replies (no ping-pong).
+- **Unread badges** (deferred since M3): `ThreadRead` events + `reads` fold +
+  `unreadThreadKeys`/`unreadCountFor`; the Messages icon badges on home, unread
+  threads show a dot + bold, opening a thread (or receiving while it's open)
+  marks it read.
+- **`message` scenario step**: scenarios can script a text
+  (`kind: message, person, to, text`) through the send-message capability. The
+  authored `evening-catchup` scenario shows the whole stage: Ava shares, a
+  `clock` step wakes Sam's autopilot (no step sends his reply!), Maya's
+  check-in is a `message` step, and Ava returns to a badged inbox.
+- **DevBar `+1h`**: advance the sim clock by an hour — time passing is now an
+  interesting act, since residents may respond to it.
+
 ### Roadmap — enhancement tracks (post-harness II)
 
 Six tracks, ordered by leverage. Tracks 1–4 and 6 are staged below; track 5 is
@@ -613,7 +657,8 @@ M5 and track "shells" is M6. Each stage is one PR-sized change.
 **Staged sequence:** ① capability breadth (Reminders + `send-message` + new
 selection kinds) ✅ (landed as harness III) → ② supervision levels + editable
 proposals ✅ (landed as harness IV) → ③ situated
-brain ✅ (landed as harness V) → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
+brain ✅ (landed as harness V) → ④ resident autopilot ✅ (landed as harness
+VI) → ⑤ M5 LLM + eval fixtures, with instrumentation
 (⑥) alongside whichever stage runs the first study. Rationale: supervision is
 only interesting once plans have multiple real actions to supervise; the LLM
 goes late because every earlier track makes its job better-defined while the

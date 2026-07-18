@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAutopilot } from './autopilot';
 import { SessionProvider } from './session';
 import { StoreProvider } from './state';
 import { Phone, type Screen } from './phone/Phone';
@@ -15,6 +16,8 @@ import { ScenarioBar } from './scenarios/ScenarioBar';
  */
 function Stage() {
   const [screen, setScreen] = useState<Screen>({ kind: 'locked' });
+  // The world acts back: residents' authored behaviors (auto-reply) fire here.
+  useAutopilot();
 
   return (
     <ScreenProvider value={{ screen, setScreen }}>

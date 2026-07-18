@@ -31,12 +31,29 @@ export const appDefinitionSchema = z.object({
 });
 export type AppDefinition = z.infer<typeof appDefinitionSchema>;
 
+/**
+ * A resident's autopilot behavior: reply to inbound shares after a sim-time
+ * delay. Behaviors run only while the person is NOT embodied — picking up
+ * their phone takes over from the autopilot.
+ */
+export const autoReplySchema = z.object({
+  'delay-hours': z.number().positive().default(2),
+  /** Reply text; omitted = a generic drafted reaction. */
+  message: z.string().optional(),
+});
+export type AutoReplyBehavior = z.infer<typeof autoReplySchema>;
+
+export const behaviorsSchema = z
+  .object({ 'auto-reply': autoReplySchema.optional() })
+  .catchall(z.unknown())
+  .default({});
+
 export const profileSchema = z.object({
   id: z.string(),
   name: z.string(),
   avatar: z.string().default('🙂'),
   traits: z.array(z.string()).default([]),
-  behaviors: z.record(z.unknown()).default({}),
+  behaviors: behaviorsSchema,
 });
 export type Profile = z.infer<typeof profileSchema>;
 
@@ -147,7 +164,11 @@ const focusScreenSchema = z.union([
   z.object({ app: z.string() }),
 ]);
 
-/** One step of a scenario: advance the clock, cut to a person's phone, or share. */
+/**
+ * One step of a scenario: advance the clock, cut to a person's phone, share
+ * photos, or send a message — every effect step scripts the same capability
+ * a human interaction uses.
+ */
 export const scenarioStepSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('clock'), at: z.coerce.date() }),
   z.object({
@@ -161,6 +182,13 @@ export const scenarioStepSchema = z.discriminatedUnion('kind', [
     person: z.string(),
     device: z.string().optional(),
     photos: z.array(z.string()).min(1),
+  }),
+  z.object({
+    kind: z.literal('message'),
+    person: z.string(),
+    device: z.string().optional(),
+    to: z.array(z.string()).min(1),
+    text: z.string().min(1),
   }),
 ]);
 export type ScenarioStep = z.infer<typeof scenarioStepSchema>;

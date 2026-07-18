@@ -1,4 +1,4 @@
-import { useNow } from '../state';
+import { unreadCountFor, useNow, useStore } from '../state';
 import { PillButton } from '../ui';
 import { getApp, type Device, type LoadedPerson } from '../world';
 
@@ -18,6 +18,10 @@ interface HomeScreenProps {
 
 export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps) {
   const now = useNow();
+  const { state } = useStore();
+  // Messages is the one app with a badge source today (unread threads). If a
+  // second badged app appears, lift this into a per-app badge registry.
+  const unread = unreadCountFor(state, owner.id);
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-surface to-bg px-space-xl pb-space-2xl pt-space-lg">
       {/* The greeting is a brand moment — headline face, room to breathe. */}
@@ -32,6 +36,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
       <div className="grid grid-cols-4 gap-x-space-lg gap-y-space-xl">
         {device.apps.map((appId, i) => {
           const app = getApp(appId);
+          const badge = appId === 'messages' ? unread : 0;
           return (
             <button
               key={appId}
@@ -39,8 +44,13 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
               className="flex animate-rise flex-col items-center gap-1.5"
               style={{ animationDelay: `${i * 30}ms` }}
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-card bg-text/10 text-2xl shadow-inner ring-1 ring-text/5 transition-transform duration-150 ease-out-soft active:scale-90">
+              <span className="relative flex h-14 w-14 items-center justify-center rounded-card bg-text/10 text-2xl shadow-inner ring-1 ring-text/5 transition-transform duration-150 ease-out-soft active:scale-90">
                 {app.icon}
+                {badge > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pop items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white ring-2 ring-bg">
+                    {badge}
+                  </span>
+                )}
               </span>
               <span className="type-caption text-text/90">{app.name}</span>
             </button>
