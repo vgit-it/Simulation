@@ -143,7 +143,9 @@ src/
   intelligence/                # IntelligenceProvider.for(personId) -> person brain
     types.ts                   # the adapter contract (PersonIntelligence)
     mock.ts                    # deterministic implementation
-    index.ts                   # provider selection + intelligenceFor(personId)
+    llm/prompt.ts              # buildLLMRequest: ContextBundle -> exact Anthropic API payload
+    llm/index.ts               # LLMIntelligence (dry-run today): shows the payload, no network
+    index.ts                   # provider selection (config + DevBar override) + intelligenceFor(personId)
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
@@ -664,14 +666,41 @@ only interesting once plans have multiple real actions to supervise; the LLM
 goes late because every earlier track makes its job better-defined while the
 swap stays cheap by design.
 
-### M5 — Real LLM provider
+### M5 groundwork — LLM dry-run harness ✅ (current)
 
-Implement `LLMIntelligence` behind the existing `IntelligenceProvider` interface
-and select it via config. Decide the key strategy at that point (client-side key
-vs. serverless proxy) — GitHub Pages is static-only, so a real backend requires a
-serverless function. A Claude.ai Pro/Max subscription is not a valid backend for
-this (see above) — it must be a real Anthropic API key, held server-side.
-Keep the mock as the default/offline provider.
+Everything except the network call. `LLMIntelligence`
+(`src/intelligence/llm/`) implements `PersonIntelligence` behind the existing
+provider seam, selected via config or the DevBar **Brain** toggle (🧪 mock /
+🔌 llm dry-run, persisted per-browser in localStorage). Its `respond()`
+assembles the EXACT Anthropic Messages API request the real provider will
+send — `buildLLMRequest(ctx, history, message)` (`llm/prompt.ts`) produces
+`{model, max_tokens, system, tools, messages}`:
+
+- **system**: the ContextBundle serialized — owner + traits, sim time, device
+  + installed apps, open app, live selection, contacts, gallery metadata
+  (ground truth), recent messages, reminders, recorded facts, recent plan
+  runs, and the ChatReply/PlanStep JSON reply contract.
+- **tools**: the capability registry (installed apps only), each with its
+  selection requirement and whether the current selection satisfies it.
+- **messages**: persisted chat history + the new turn.
+
+Instead of calling, it returns the payload on `ChatReply.llmRequest`; the
+Assistant renders it (model, system, tools, messages) so you can inspect
+precisely what the model would see. Everything that isn't the decider seam
+(grouping, drafts, suggestions, plans) delegates to the mock, so the phone
+stays fully usable — and token-free — in dry-run mode. The mock remains the
+default provider (principle 8).
+
+### M5 — Real LLM provider (remaining)
+
+Swap the dry-run tail of `respond()` for the real call: send
+`buildLLMRequest(...)`, parse the ChatReply/Plan JSON — nothing upstream
+changes. Decide the key strategy at that point (client-side key vs. serverless
+proxy) — GitHub Pages is static-only, so a real backend requires a serverless
+function. A Claude.ai Pro/Max subscription is not a valid backend for this
+(see above) — it must be a real Anthropic API key, held server-side. Add the
+eval-fixture harness (roadmap ⑤) alongside: (state, selection, request) →
+expected plan, mock as oracle. Keep the mock as the default/offline provider.
 
 ### M6 — More device shells & richer visuals
 

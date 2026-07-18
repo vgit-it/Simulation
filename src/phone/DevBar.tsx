@@ -1,3 +1,4 @@
+import { activeProviderName, switchProvider } from '../intelligence';
 import { useHeroDevices, useSession } from '../session';
 import { useNow, useStore } from '../state';
 import { world } from '../world';
@@ -94,6 +95,18 @@ export function DevBar({ onScreenChange }: DevBarProps) {
           title="Clear all runtime state (sent messages, tracked facts)"
         >
           ↺ Reset world
+        </button>
+
+        <button
+          onClick={() =>
+            switchProvider(
+              activeProviderName() === 'mock' ? 'llm-dry-run' : 'mock',
+            )
+          }
+          className="rounded-full bg-white/5 px-3 py-1 transition-colors duration-150 hover:bg-white/10"
+          title="Switch the assistant brain. 'llm dry-run' shows the exact API request the real model would receive — no call is made."
+        >
+          {activeProviderName() === 'mock' ? '🧪 mock brain' : '🔌 llm dry-run'}
         </button>
       </div>
     </div>

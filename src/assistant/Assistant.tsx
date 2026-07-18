@@ -2,7 +2,11 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { propose, type Proposal } from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
-import { intelligenceFor, type Suggestion } from '../intelligence';
+import {
+  intelligenceFor,
+  type LLMRequest,
+  type Suggestion,
+} from '../intelligence';
 import { PlanProgress } from '../plans/PlanProgress';
 import { PlanSheet } from '../plans/PlanSheet';
 import { usePlanRunner } from '../plans/usePlanRunner';
@@ -26,6 +30,8 @@ export function Assistant() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
   const [chatInput, setChatInput] = useState('');
+  // The dry-run brain's assembled API payload (shown instead of an answer).
+  const [lastRequest, setLastRequest] = useState<LLMRequest | null>(null);
 
   const runner = usePlanRunner();
 
@@ -66,6 +72,7 @@ export function Assistant() {
       text: reply.text,
     });
     setChatInput('');
+    if (reply.llmRequest) setLastRequest(reply.llmRequest);
     // A task-shaped reply carries a plan: close the sheet and preview it so the
     // user can watch it run on the phone.
     if (reply.plan) {
@@ -173,6 +180,32 @@ export function Assistant() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {lastRequest && (
+          <div className="mb-space-sm animate-rise rounded-card bg-bg/60 p-space-md ring-1 ring-accent/30">
+            <p className="type-caption text-accent">
+              📤 Assembled LLM request (dry run — nothing was sent)
+            </p>
+            <p className="type-caption mt-1 text-muted">
+              model: {lastRequest.model} · max_tokens: {lastRequest.max_tokens}
+            </p>
+            <p className="type-caption mb-1 mt-space-sm text-muted">system</p>
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+              {lastRequest.system}
+            </pre>
+            <p className="type-caption mb-1 mt-space-sm text-muted">
+              tools ({lastRequest.tools.length})
+            </p>
+            <pre className="max-h-40 overflow-auto rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+              {JSON.stringify(lastRequest.tools, null, 2)}
+            </pre>
+            <p className="type-caption mb-1 mt-space-sm text-muted">
+              messages ({lastRequest.messages.length})
+            </p>
+            <pre className="max-h-40 overflow-auto rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+              {JSON.stringify(lastRequest.messages, null, 2)}
+            </pre>
           </div>
         )}
         <form onSubmit={onChatSubmit} className="flex gap-space-sm">
