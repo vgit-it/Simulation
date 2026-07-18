@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { propose, type Proposal } from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
@@ -9,11 +9,18 @@ import {
 } from '../intelligence';
 import { PlanProgress } from '../plans/PlanProgress';
 import { PlanSheet } from '../plans/PlanSheet';
-import { usePlanRunner } from '../plans/usePlanRunner';
+import { usePlanRunner, type ActivePlan } from '../plans/usePlanRunner';
 import type { Plan, Supervision } from '../plans/types';
 import { useSession } from '../session';
 import { chatHistoryFor, messagesFrom, plansFor, useStore } from '../state';
-import { PillButton, Sheet } from '../ui';
+import {
+  EXIT,
+  PillButton,
+  Sheet,
+  THINKING_BEAT_MS,
+  prefersReducedMotion,
+  useMountTransition,
+} from '../ui';
 import { resolvePerson } from '../world';
 
 /**
@@ -32,8 +39,18 @@ export function Assistant() {
   const [chatInput, setChatInput] = useState('');
   // The dry-run brain's assembled API payload (shown instead of an answer).
   const [lastRequest, setLastRequest] = useState<LLMRequest | null>(null);
+  // Presentation-only "thinking" beat: the reply is already computed AND
+  // dispatched (state correctness first) — this just paces its on-screen
+  // reveal behind a typing indicator, so answering reads as an act.
+  const [thinking, setThinking] = useState(false);
+  const thinkingTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(thinkingTimer.current), []);
 
   const runner = usePlanRunner();
+  // Keep the last plan rendered through the HUD's exit (completion beat + fade).
+  const lastRunRef = useRef<ActivePlan | null>(null);
+  if (runner.active) lastRunRef.current = runner.active;
+  const hud = useMountTransition(Boolean(runner.active), EXIT.hud);
 
   // Suggestions are situated: the brain reads the runtime log through the
   // context (already-shared photos drop out; inbound shares surface a reply).
@@ -45,6 +62,12 @@ export function Assistant() {
   const planRuns = plansFor(state, session.personId);
   // Chat history is event-log state: it survives reloads and POV round-trips.
   const chatHistory = chatHistoryFor(state, session.personId);
+  // While the thinking beat runs, the just-dispatched assistant reply stays
+  // hidden behind the typing dots (the log already has it — reveal only).
+  const visibleHistory =
+    thinking && chatHistory.at(-1)?.role === 'assistant'
+      ? chatHistory.slice(0, -1)
+      : chatHistory;
 
   function onSuggestion(s: Suggestion) {
     const ctx = assembleContext(session, state, {});
@@ -72,10 +95,9 @@ export function Assistant() {
       text: reply.text,
     });
     setChatInput('');
-    if (reply.llmRequest) setLastRequest(reply.llmRequest);
-    // A task-shaped reply carries a plan: close the sheet and preview it so the
-    // user can watch it run on the phone. PlanProposed lands BEFORE any
-    // approval, so declined plans leave a telemetry trail too.
+    // A task-shaped reply carries a plan. PlanProposed lands BEFORE any
+    // approval (and before the reveal beat), so declined plans leave a
+    // telemetry trail and the log never waits on animation.
     if (reply.plan) {
       dispatch({
         type: 'PlanProposed',
@@ -85,9 +107,23 @@ export function Assistant() {
         goal: reply.plan.goal,
         steps: reply.plan.steps.length,
       });
-      setPreviewPlan(reply.plan);
-      setOpen(false);
     }
+    // Everything above is committed; now pace the on-screen reveal only —
+    // typing dots for a beat, then the reply (and plan preview / dry-run
+    // payload) appears.
+    setThinking(true);
+    clearTimeout(thinkingTimer.current);
+    thinkingTimer.current = setTimeout(
+      () => {
+        setThinking(false);
+        if (reply.llmRequest) setLastRequest(reply.llmRequest);
+        if (reply.plan) {
+          setPreviewPlan(reply.plan);
+          setOpen(false);
+        }
+      },
+      prefersReducedMotion() ? 0 : THINKING_BEAT_MS,
+    );
   }
 
   function runPlan(plan: Plan, supervision: Supervision, struck: number) {
@@ -124,6 +160,13 @@ export function Assistant() {
             open || runner.active ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
           }`}
         >
+          {/* Beacon halo: the assistant has something for you. */}
+          {suggestions.length > 0 && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 animate-halo rounded-full border-2 border-accent"
+            />
+          )}
           ✨
           {suggestions.length > 0 && (
             <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 animate-pop rounded-full bg-white ring-[3px] ring-accent" />
@@ -131,8 +174,12 @@ export function Assistant() {
         </button>
       </span>
 
-      {runner.active && (
-        <PlanProgress active={runner.active} onCancel={runner.cancel} />
+      {hud.mounted && (runner.active ?? lastRunRef.current) && (
+        <PlanProgress
+          active={(runner.active ?? lastRunRef.current)!}
+          closing={hud.closing}
+          onCancel={runner.cancel}
+        />
       )}
 
       <Sheet
@@ -142,7 +189,10 @@ export function Assistant() {
         maxHeightClass="max-h-[85%]"
       >
         <div className="flex items-center justify-between">
-          <h2 className="type-title">✨ Assistant</h2>
+          <h2 className="type-title">
+            {/* The breathe reads as "listening" while the sheet awaits input. */}
+            <span className="inline-block animate-breathe">✨</span> Assistant
+          </h2>
           <button
             onClick={() => setOpen(false)}
             className="type-label rounded-ds-full bg-text/10 px-space-md py-1 text-muted transition duration-150 active:scale-95"
@@ -183,9 +233,9 @@ export function Assistant() {
         <p className="type-caption mb-space-sm text-muted/70">
           Try “share these” after selecting photos, or “share this week's photos”.
         </p>
-        {chatHistory.length > 0 && (
+        {visibleHistory.length > 0 && (
           <div className="mb-space-sm flex flex-col gap-space-sm">
-            {chatHistory.map((turn, i) => (
+            {visibleHistory.map((turn, i) => (
               <div
                 key={i}
                 className={`flex animate-rise flex-col ${
@@ -203,6 +253,22 @@ export function Assistant() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {thinking && (
+          <div className="mb-space-sm flex animate-rise items-start">
+            <div
+              aria-label="Assistant is thinking"
+              className="flex items-center gap-1 rounded-ds-md rounded-bl-ds-xs bg-bg/60 px-3.5 py-3 ring-1 ring-text/5"
+            >
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-muted"
+                  style={{ animationDelay: `${i * 150}ms` }}
+                />
+              ))}
+            </div>
           </div>
         )}
         {lastRequest && (
@@ -232,15 +298,25 @@ export function Assistant() {
           </div>
         )}
         <form onSubmit={onChatSubmit} className="flex gap-space-sm">
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            placeholder="Ask the assistant..."
-            className="type-body-sm min-w-0 flex-1 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
-          />
+          <div className="relative min-w-0 flex-1">
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask the assistant..."
+              disabled={thinking}
+              className="type-body-sm w-full rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 transition duration-150 placeholder:text-muted focus:outline-none focus:ring-accent/40 disabled:opacity-60"
+            />
+            {/* Idle pulse: the empty input gently glows while awaiting a request. */}
+            {!chatInput && !thinking && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 animate-breathe rounded-ds-full ring-1 ring-accent/40"
+              />
+            )}
+          </div>
           <PillButton
             variant="accent"
-            disabled={!chatInput.trim()}
+            disabled={!chatInput.trim() || thinking}
             className="shrink-0"
           >
             Send

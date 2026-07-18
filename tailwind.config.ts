@@ -73,6 +73,16 @@ export default {
           '50%': { opacity: '1' },
         },
         push: { from: { opacity: '0', transform: 'translateX(16px)' } },
+        // An expanding, fading ring — the "I have something for you" beacon.
+        halo: {
+          '0%': { transform: 'scale(1)', opacity: '0.55' },
+          '75%, 100%': { transform: 'scale(1.9)', opacity: '0' },
+        },
+        // One dot of a typing indicator; stagger siblings via animationDelay.
+        'dot-bounce': {
+          '0%, 60%, 100%': { transform: 'translateY(0)', opacity: '0.35' },
+          '30%': { transform: 'translateY(-3px)', opacity: '1' },
+        },
       },
       // 'both' fill-mode everywhere so staggered entrances (inline
       // animationDelay) hold their from-state until the delay elapses.
@@ -88,6 +98,11 @@ export default {
         pop: 'pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
         breathe: 'breathe 2.6s ease-in-out infinite',
         push: 'push 250ms cubic-bezier(0.25, 1, 0.5, 1) both',
+        halo: 'halo 2.4s cubic-bezier(0.25, 1, 0.5, 1) infinite',
+        'dot-bounce': 'dot-bounce 1.1s ease-in-out infinite',
+        // Exit for the plan HUD: hold a beat (so "✓ Plan complete" is
+        // readable), then fade; useMountTransition unmounts at EXIT.hud.
+        'hud-out': 'fade-out 250ms ease-out 450ms both',
       },
     },
   },

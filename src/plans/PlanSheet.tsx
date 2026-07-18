@@ -127,7 +127,7 @@ export function PlanSheet({ plan, onRun, onCancel }: PlanSheetProps) {
               }`}
             >
               <span
-                className={`type-label block ${on ? 'text-accent' : 'text-text'}`}
+                className={`type-label block ${on ? 'animate-pop text-accent' : 'text-text'}`}
               >
                 {level.label}
               </span>
