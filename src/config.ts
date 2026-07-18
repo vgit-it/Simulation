@@ -16,8 +16,12 @@ export const HERO_PERSON_ID = 'ava-chen';
 export const HERO_DEVICE_ID = 'ava-phone';
 
 /**
- * Which intelligence provider backs derived/"smart" results. 'mock' is fully
- * deterministic and spends no tokens; an 'llm' provider can drop in later behind
- * the same interface without touching the UI.
+ * Which intelligence provider backs derived/"smart" results.
+ *  - 'mock': fully deterministic, no tokens (the default — always works offline).
+ *  - 'llm-dry-run': chat assembles the EXACT Anthropic API request (system
+ *    prompt + capability tools + messages) and shows it instead of calling —
+ *    no key, no network. The M5 real provider will reuse the same builder.
+ * The DevBar Brain toggle overrides this per-browser via localStorage.
  */
-export const INTELLIGENCE_PROVIDER: 'mock' = 'mock';
+export type IntelligenceProviderName = 'mock' | 'llm-dry-run';
+export const INTELLIGENCE_PROVIDER: IntelligenceProviderName = 'mock';

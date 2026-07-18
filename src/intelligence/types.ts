@@ -47,11 +47,14 @@ export interface ChatTurn {
 /**
  * The brain's reply to a free-form chat message. `text` is always present; a
  * task-shaped request also yields a `plan` the assistant can preview and run —
- * this is how the chat becomes able to *act*, not just describe.
+ * this is how the chat becomes able to *act*, not just describe. In the LLM
+ * dry-run provider, `llmRequest` carries the exact API payload that would have
+ * been sent, for the UI to display instead of an answer.
  */
 export interface ChatReply {
   text: string;
   plan?: Plan;
+  llmRequest?: import('./llm/prompt').LLMRequest;
 }
 
 /**
