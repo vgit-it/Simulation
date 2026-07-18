@@ -41,11 +41,20 @@ function ownedPhotos(ctx: ContextBundle, ids: string[]): Photo[] {
   return photos;
 }
 
-function proposeSharePhotos(ctx: ContextBundle, ids: string[]): Proposal {
+function proposeSharePhotos(
+  ctx: ContextBundle,
+  ids: string[],
+  payload?: ActionPayload,
+): Proposal {
   const photos = ownedPhotos(ctx, ids);
   const draft = ctx.brain.draftShare(photos);
+  // Payload overrides (user edits / planner choices) win over the draft.
+  const recipients = Array.isArray(payload?.recipients)
+    ? (payload.recipients as string[]).map((id) => resolvePerson(ctx.owner.id, id))
+    : draft.recipients;
+  const message =
+    typeof payload?.message === 'string' ? payload.message : draft.message;
   const at = ctx.now.getTime();
-  const to = draft.recipients.map((r) => r.id);
 
   const events: SimEvent[] = [
     {
@@ -53,12 +62,12 @@ function proposeSharePhotos(ctx: ContextBundle, ids: string[]): Proposal {
       id: uid('msg'),
       at,
       from: ctx.owner.id,
-      to,
-      body: draft.message,
+      to: recipients.map((r) => r.id),
+      body: message,
       attachments: ids,
       intent: 'share-photos',
     },
-    ...draft.recipients.map(
+    ...recipients.map(
       (r): SimEvent => ({
         type: 'FactRecorded',
         at,
@@ -74,16 +83,20 @@ function proposeSharePhotos(ctx: ContextBundle, ids: string[]): Proposal {
     id: uid('prop'),
     intent: 'share-photos',
     title: `Share ${count} photo${count === 1 ? '' : 's'}`,
-    summary: draft.recipients.length
-      ? `With ${draft.recipients.map((r) => r.name).join(', ')}`
-      : 'No one else is in these photos',
-    recipients: draft.recipients,
-    message: draft.message,
+    summary: recipients.length
+      ? `With ${recipients.map((r) => r.name).join(', ')}`
+      : 'No one to share with',
+    recipients,
+    message,
     attachments: ids,
     events,
-    invalidReason: draft.recipients.length
-      ? undefined
-      : 'No one else is in these photos',
+    invalidReason: recipients.length ? undefined : 'No one to share with',
+    amend: (edit) =>
+      proposeSharePhotos(ctx, ids, {
+        ...payload,
+        ...(edit.message !== undefined && { message: edit.message }),
+        ...(edit.recipientIds && { recipients: edit.recipientIds }),
+      }),
   };
 }
 
@@ -94,8 +107,12 @@ function proposeSendMessage(
 ): Proposal {
   const recipients = ids.map((id) => resolvePerson(ctx.owner.id, id));
   const names = recipients.map((r) => r.name).join(', ');
-  const payloadText = typeof payload?.text === 'string' ? payload.text.trim() : '';
-  const text = payloadText || ctx.brain.draftMessage(recipients);
+  // An explicit payload text wins even when empty (an edit that clears the
+  // text should make the proposal invalid, not resurrect the draft).
+  const text =
+    typeof payload?.text === 'string'
+      ? payload.text.trim()
+      : ctx.brain.draftMessage(recipients);
   const attachments = Array.isArray(payload?.attachments)
     ? (payload.attachments as string[])
     : [];
@@ -123,7 +140,16 @@ function proposeSendMessage(
     message: text,
     attachments,
     events,
-    invalidReason: ids.length ? undefined : 'No recipients selected',
+    invalidReason: !ids.length
+      ? 'No recipients selected'
+      : !text
+        ? 'The message is empty'
+        : undefined,
+    amend: (edit) =>
+      proposeSendMessage(ctx, edit.recipientIds ?? ids, {
+        ...payload,
+        ...(edit.message !== undefined && { text: edit.message }),
+      }),
   };
 }
 
@@ -159,6 +185,11 @@ function proposeCreateReminder(
     events,
     confirmLabel: 'Add',
     invalidReason: title ? undefined : 'The reminder needs a title',
+    amend: (edit) =>
+      proposeCreateReminder(ctx, ids, {
+        ...payload,
+        ...(edit.message !== undefined && { title: edit.message }),
+      }),
   };
 }
 

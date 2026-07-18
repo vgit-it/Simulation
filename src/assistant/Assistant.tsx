@@ -6,7 +6,7 @@ import { intelligenceFor, type ChatTurn, type Suggestion } from '../intelligence
 import { PlanProgress } from '../plans/PlanProgress';
 import { PlanSheet } from '../plans/PlanSheet';
 import { usePlanRunner } from '../plans/usePlanRunner';
-import type { Plan } from '../plans/types';
+import type { Plan, Supervision } from '../plans/types';
 import { useSession } from '../session';
 import { messagesFrom, plansFor, useNow, useStore } from '../state';
 import { PillButton, Sheet } from '../ui';
@@ -66,8 +66,8 @@ export function Assistant() {
     }
   }
 
-  function runPlan() {
-    if (previewPlan) runner.start(previewPlan);
+  function runPlan(plan: Plan, supervision: Supervision) {
+    runner.start(plan, supervision);
     setPreviewPlan(null);
   }
 
@@ -197,6 +197,7 @@ export function Assistant() {
               >
                 <p className="type-caption text-accent">
                   ✨ Plan · {run.outcome} · {run.steps} steps
+                  {run.supervision ? ` · ${run.supervision}` : ''}
                 </p>
                 <p className="type-body-sm mt-0.5">{run.goal}</p>
               </div>

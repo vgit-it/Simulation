@@ -18,6 +18,14 @@ import { capabilityFor, type ActionPayload } from './capabilities';
  * from the brain today and can become LLM-generated later; the pipeline shape
  * and commit path stay fixed.
  */
+/** A user's edit to a drafted proposal before committing it. */
+export interface ProposalEdit {
+  /** Replacement body text (message text / reminder title). */
+  message?: string;
+  /** Replacement recipient ids (e.g. after removing a chip). */
+  recipientIds?: string[];
+}
+
 export interface Proposal {
   id: string;
   intent: string;
@@ -32,6 +40,12 @@ export interface Proposal {
   invalidReason?: string;
   /** Confirm-button label; defaults to 'Send'. */
   confirmLabel?: string;
+  /**
+   * Re-derive this proposal with a user's edits applied — display fields AND
+   * events, so what you see is exactly what commits. Each capability supplies
+   * its own amend (it knows its event shapes); absent = not editable.
+   */
+  amend?: (edit: ProposalEdit) => Proposal;
 }
 
 export {

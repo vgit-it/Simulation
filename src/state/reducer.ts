@@ -36,6 +36,8 @@ export interface PlanRun {
   steps: number;
   at: number;
   outcome: 'running' | 'completed' | 'cancelled';
+  /** Supervision level the run was started with (absent on old logs). */
+  supervision?: string;
 }
 
 /** Runtime (mutable) world state, all derived from the event log. */
@@ -122,6 +124,7 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
             steps: event.steps,
             at: event.at,
             outcome: 'running',
+            supervision: event.supervision,
           },
         ],
       };

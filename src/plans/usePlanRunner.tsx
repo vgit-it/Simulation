@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Proposal } from '../actions';
+import { commit, type Proposal } from '../actions';
 import { useScreenControl } from '../phone/screen';
 import { useSession } from '../session';
 import { useStore } from '../state';
 import { resolvePlanStep } from './executor';
-import type { Plan } from './types';
+import type { Plan, Supervision } from './types';
 
 /** How long a navigate/gather step lingers before the plan advances itself. */
 const NAV_BEAT_MS = 1400;
+/** Beat between auto-committed steps in 'auto' mode (state settles between). */
+const AUTO_BEAT_MS = 250;
 
 export interface ActivePlan {
   plan: Plan;
   stepIndex: number;
+  supervision: Supervision;
   /** The current action step's proposal, awaiting approval (null on nav steps). */
   proposal: Proposal | null;
 }
@@ -19,7 +22,7 @@ export interface ActivePlan {
 export interface PlanRunner {
   active: ActivePlan | null;
   /** Begin executing a plan (records PlanStarted, drives the phone). */
-  start: (plan: Plan) => void;
+  start: (plan: Plan, supervision?: Supervision) => void;
   /** Abort the running plan (records PlanCompleted 'cancelled'). */
   cancel: () => void;
   /** Advance past the current action step once its proposal is committed. */
@@ -34,6 +37,12 @@ export interface PlanRunner {
  * the context the next step acts on. It reuses the exact levers a human/DevBar/
  * scenario uses (session POV + the lifted screen), so nothing here is a parallel
  * effect path.
+ *
+ * The supervision level relaxes the pausing: 'confirm-once' commits action
+ * proposals itself while still walking the phone app-by-app; 'auto' commits
+ * every step back-to-back without driving the screen at all. An INVALID
+ * proposal always pauses, whatever the level — autonomy never overrides a
+ * validity stop.
  *
  * State/session are read through refs so the executor sees fresh values without
  * the drive-effect re-firing every time the log changes (which would re-resolve
@@ -51,7 +60,7 @@ export function usePlanRunner(): PlanRunner {
   sessionRef.current = session;
 
   const start = useCallback(
-    (plan: Plan) => {
+    (plan: Plan, supervision: Supervision = 'confirm-each') => {
       dispatch({
         type: 'PlanStarted',
         at: stateRef.current.clock,
@@ -59,8 +68,9 @@ export function usePlanRunner(): PlanRunner {
         planId: plan.id,
         goal: plan.goal,
         steps: plan.steps.length,
+        supervision,
       });
-      setActive({ plan, stepIndex: 0, proposal: null });
+      setActive({ plan, stepIndex: 0, supervision, proposal: null });
     },
     [dispatch],
   );
@@ -89,7 +99,7 @@ export function usePlanRunner(): PlanRunner {
   useEffect(() => {
     if (!active || active.proposal) return; // idle, or paused on approval
 
-    const { plan, stepIndex } = active;
+    const { plan, stepIndex, supervision } = active;
     if (stepIndex >= plan.steps.length) {
       dispatch({
         type: 'PlanCompleted',
@@ -103,19 +113,42 @@ export function usePlanRunner(): PlanRunner {
     }
 
     const step = plan.steps[stepIndex];
-    const result = resolvePlanStep(step, sessionRef.current, stateRef.current);
-    if (result.focus) {
-      setPerson(result.focus.personId);
-      if (result.focus.deviceId) setDevice(result.focus.deviceId);
+    const auto = supervision === 'auto';
+
+    // 'auto' skips the walkthrough entirely: navigate steps are no-ops and
+    // nothing drives the phone screen — only the effects land.
+    if (auto && !step.intent) {
+      setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null));
+      return;
     }
-    if (result.screen) setScreen(result.screen);
-    result.events.forEach(dispatch);
+
+    const result = resolvePlanStep(step, sessionRef.current, stateRef.current);
+    if (!auto) {
+      if (result.focus) {
+        setPerson(result.focus.personId);
+        if (result.focus.deviceId) setDevice(result.focus.deviceId);
+      }
+      if (result.screen) setScreen(result.screen);
+      result.events.forEach(dispatch);
+    }
 
     if (result.proposal) {
       const proposal = result.proposal;
-      setActive((a) => (a ? { ...a, proposal } : null));
-      return;
+      // A proposal that can't commit pauses at the sheet whatever the level.
+      if (supervision === 'confirm-each' || proposal.invalidReason) {
+        setActive((a) => (a ? { ...a, proposal } : null));
+        return;
+      }
+      // Supervised-once / auto: the Run tap was the approval — commit now,
+      // then advance after a beat (long enough to watch in 'confirm-once').
+      commit(proposal, dispatch);
+      const id = setTimeout(
+        () => setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null)),
+        auto ? AUTO_BEAT_MS : NAV_BEAT_MS,
+      );
+      return () => clearTimeout(id);
     }
+
     // Navigate/gather step: linger, then advance.
     const id = setTimeout(() => {
       setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null));

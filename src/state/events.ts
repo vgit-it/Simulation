@@ -61,6 +61,8 @@ export interface PlanStartedEvent {
   planId: string;
   goal: string;
   steps: number;
+  /** The supervision level the user chose ('confirm-each' | 'confirm-once' | 'auto'). */
+  supervision?: string;
 }
 
 /** A runtime plan finished executing (all steps done, or cancelled). */
