@@ -87,6 +87,24 @@ describe('MockIntelligence.plan', () => {
     expect(plan!.steps.some((s) => s.id === 'confirm')).toBe(false);
   });
 
+  it('falls back to the last-shared-with fact for an unbound message request', () => {
+    // No selection, no share step — but Ava's log says she last shared with Leo.
+    const seeded = {
+      ...state,
+      facts: {
+        'ava-chen': [
+          { at: 1, key: 'last-shared-with', value: 'sam-ruiz' },
+          { at: 2, key: 'last-shared-with', value: 'leo-park' },
+        ],
+      },
+    };
+    const ctx = assembleContext(session, seeded);
+    const plan = brain.plan(ctx, 'send a message saying hi');
+    expect(plan).not.toBeNull();
+    const msg = plan!.steps.find((s) => s.intent === 'send-message');
+    expect(msg?.ids).toEqual(['leo-park']); // the most recent fact wins
+  });
+
   it('skips steps whose app is not installed on the device', () => {
     const ctx = assembleContext(session, state);
     // Leo's phone: check what a reminder-less device would plan. Build a ctx

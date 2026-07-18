@@ -263,10 +263,14 @@ thread's participants in Messages; a tapped contact in Contacts) — the kind is
 what capability `selection:` specs match against, so where it was selected
 doesn't matter.
 
-**Add an assistant suggestion:** extend `suggestShares` (or a sibling method) on
-the brain (`src/intelligence/mock.ts`) to return `Suggestion`s; the assistant
-(`src/assistant/Assistant.tsx`) renders them and turns a tap into
-`propose(intent, ctx, …)`. Suggestions are proactive pre-proposals, nothing more.
+**Add an assistant suggestion:** extend `suggest(ctx)` on the brain
+(`src/intelligence/mock.ts`) to return `Suggestion`s — a suggestion carries
+exactly the propose inputs (`intent`, `ids`, optional `payload`, an `icon`),
+so the assistant (`src/assistant/Assistant.tsx`) turns a tap into
+`propose(intent, ctx, ids, payload)` for ANY intent. Suggestions are proactive
+pre-proposals, nothing more — and they're situated: read `ctx.state` so the
+suggestion disappears once the log shows it happened (see `sharedPhotoIds` /
+`unansweredInboundShare` for the pattern).
 
 **Show received messages:** the event log is global, so a person's inbox is just
 a filter over it — `messagesInvolving(state, personId)` and `inboxThreads(state,
@@ -548,6 +552,30 @@ per-plan choice, and every drafted proposal is editable before it commits.
 Deferred from track ②: interrupt-&-takeover (detect the user doing a paused
 step manually and skip ahead).
 
+### Agent harness V — situated brain ✅ (current, pre-M5)
+
+Roadmap stage ③: the brain now reads the runtime log through the context, so
+what it offers reflects what has actually happened.
+
+- **`suggest(ctx)` replaces `suggestShares(photos, now)`**: suggestions are
+  situated and intent-agnostic. `Suggestion` now carries exactly the propose
+  inputs (`intent`, `ids`, `payload?`, `icon`), so a tap runs
+  `propose(intent, ctx, ids, payload)` for any capability.
+- **No re-suggesting**: photos whose ids appear in any message the person
+  already sent drop out of share suggestions (`sharedPhotoIds`); once
+  everything recent is shared, the suggestion disappears entirely (and
+  `respond()` says so instead of re-offering).
+- **Inbound reactions**: an unanswered inbound share surfaces "Reply to Sam —
+  sent you 2 photos" with a drafted reply (`unansweredInboundShare`). Replying
+  (at ≥ the share's sim timestamp — the clock may not have moved) retires it.
+  Embody the recipient and the world has visibly acted on you.
+- **`last-shared-with` is finally read**: an unbound "send a message" plan
+  falls back to the most recent `last-shared-with` fact — the brain's recorded
+  memory now shapes its plans.
+- **Chat history is event-log state**: `ChatMessage` events → `chats` +
+  `chatHistoryFor`; the Assistant dispatches each turn, so conversations
+  survive reload/POV switches and feed `respond()` as real history.
+
 ### Roadmap — enhancement tracks (post-harness II)
 
 Six tracks, ordered by leverage. Tracks 1–4 and 6 are staged below; track 5 is
@@ -585,7 +613,7 @@ M5 and track "shells" is M6. Each stage is one PR-sized change.
 **Staged sequence:** ① capability breadth (Reminders + `send-message` + new
 selection kinds) ✅ (landed as harness III) → ② supervision levels + editable
 proposals ✅ (landed as harness IV) → ③ situated
-brain → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
+brain ✅ (landed as harness V) → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
 (⑥) alongside whichever stage runs the first study. Rationale: supervision is
 only interesting once plans have multiple real actions to supervise; the LLM
 goes late because every earlier track makes its job better-defined while the

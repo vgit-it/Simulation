@@ -1,4 +1,11 @@
-import type { Fact, Message, PlanRun, Reminder, RuntimeState } from './reducer';
+import type {
+  ChatTurnRecord,
+  Fact,
+  Message,
+  PlanRun,
+  Reminder,
+  RuntimeState,
+} from './reducer';
 
 /** A conversation: all messages among the same set of participants. */
 export interface Thread {
@@ -74,6 +81,14 @@ export function messagesWithAttachment(
 
 export function factsFor(state: RuntimeState, personId: string): Fact[] {
   return state.facts[personId] ?? [];
+}
+
+/** A person's assistant-chat history (oldest first — conversation order). */
+export function chatHistoryFor(
+  state: RuntimeState,
+  personId: string,
+): ChatTurnRecord[] {
+  return state.chats.filter((c) => c.person === personId);
 }
 
 /** A person's reminders (newest first). */

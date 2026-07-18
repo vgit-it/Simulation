@@ -42,6 +42,15 @@ export interface ClockSetEvent {
   to: number; // new sim epoch ms
 }
 
+/** One turn of a person's conversation with their assistant. */
+export interface ChatMessageEvent {
+  type: 'ChatMessage';
+  at: number;
+  person: string;
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 /** A reminder a person created (directly or via the assistant). */
 export interface ReminderCreatedEvent {
   type: 'ReminderCreated';
@@ -79,6 +88,7 @@ export type SimEvent =
   | FactRecordedEvent
   | AppOpenedEvent
   | ClockSetEvent
+  | ChatMessageEvent
   | ReminderCreatedEvent
   | PlanStartedEvent
   | PlanCompletedEvent;
