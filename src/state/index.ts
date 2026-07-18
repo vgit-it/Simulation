@@ -25,3 +25,5 @@ export {
   unreadThreadKeys,
 } from './selectors';
 export { StoreProvider, useNow, useStore } from './store';
+export type { SessionExport, TraceEntry } from './trace';
+export { buildSessionExport, countTap, getTapCount, getTrace } from './trace';

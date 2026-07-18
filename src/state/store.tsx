@@ -9,6 +9,7 @@ import {
 import type { SimEvent } from './events';
 import { hydrate, reduce, type RuntimeState } from './reducer';
 import { clearLog, loadLog, saveLog } from './persistence';
+import { clearTrace, traceEvent } from './trace';
 
 interface StoreValue {
   state: RuntimeState;
@@ -27,12 +28,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveLog(state.log);
   }, [state.log]);
 
-  const dispatch = useCallback(
-    (event: SimEvent) => raw({ kind: 'event', event }),
-    [],
-  );
+  const dispatch = useCallback((event: SimEvent) => {
+    // Instrumentation overlay: stamp wall time + tap count beside the log
+    // entry (the sim event itself stays purely sim-clocked).
+    traceEvent(event);
+    raw({ kind: 'event', event });
+  }, []);
   const reset = useCallback(() => {
     clearLog();
+    clearTrace();
     raw({ kind: 'reset' });
   }, []);
 

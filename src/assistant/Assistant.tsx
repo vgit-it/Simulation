@@ -74,15 +74,38 @@ export function Assistant() {
     setChatInput('');
     if (reply.llmRequest) setLastRequest(reply.llmRequest);
     // A task-shaped reply carries a plan: close the sheet and preview it so the
-    // user can watch it run on the phone.
+    // user can watch it run on the phone. PlanProposed lands BEFORE any
+    // approval, so declined plans leave a telemetry trail too.
     if (reply.plan) {
+      dispatch({
+        type: 'PlanProposed',
+        at,
+        person,
+        planId: reply.plan.id,
+        goal: reply.plan.goal,
+        steps: reply.plan.steps.length,
+      });
       setPreviewPlan(reply.plan);
       setOpen(false);
     }
   }
 
-  function runPlan(plan: Plan, supervision: Supervision) {
-    runner.start(plan, supervision);
+  function runPlan(plan: Plan, supervision: Supervision, struck: number) {
+    runner.start(plan, supervision, struck);
+    setPreviewPlan(null);
+  }
+
+  /** Dismissing the preview declines the plan — recorded, not just closed. */
+  function declinePlan() {
+    if (previewPlan) {
+      dispatch({
+        type: 'PlanCompleted',
+        at: state.clock,
+        person: session.personId,
+        planId: previewPlan.id,
+        outcome: 'declined',
+      });
+    }
     setPreviewPlan(null);
   }
 
@@ -238,6 +261,7 @@ export function Assistant() {
               >
                 <p className="type-caption text-accent">
                   ✨ Plan · {run.outcome} · {run.steps} steps
+                  {run.struck ? ` · ${run.struck} struck` : ''}
                   {run.supervision ? ` · ${run.supervision}` : ''}
                 </p>
                 <p className="type-body-sm mt-0.5">{run.goal}</p>
@@ -269,11 +293,7 @@ export function Assistant() {
       </Sheet>
 
       {/* Plan preview (chat -> plan). Approve to run it on the phone. */}
-      <PlanSheet
-        plan={previewPlan}
-        onRun={runPlan}
-        onCancel={() => setPreviewPlan(null)}
-      />
+      <PlanSheet plan={previewPlan} onRun={runPlan} onCancel={declinePlan} />
 
       {/* Suggestion / direct-share proposals. */}
       <ProposalSheet

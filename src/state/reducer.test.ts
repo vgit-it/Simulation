@@ -74,6 +74,44 @@ describe('reducer', () => {
     expect(s2.messages).toHaveLength(0);
   });
 
+  it('folds a plan lifecycle: proposed -> started (struck) -> steps -> done', () => {
+    const events: SimEvent[] = [
+      { type: 'PlanProposed', at: 1, person: 'ava-chen', planId: 'p1', goal: 'Share these', steps: 4 },
+      { type: 'PlanStarted', at: 2, person: 'ava-chen', planId: 'p1', goal: 'Share these', steps: 3, supervision: 'confirm-once', struck: 1 },
+      { type: 'PlanStepCompleted', at: 3, person: 'ava-chen', planId: 'p1', stepIndex: 0, label: 'Open Photos' },
+      { type: 'PlanStepCompleted', at: 4, person: 'ava-chen', planId: 'p1', stepIndex: 1, label: 'Share 2 photos' },
+    ];
+    let s = events.reduce(
+      (acc, event) => reduce(acc, { kind: 'event', event }),
+      freshState(),
+    );
+    expect(s.plans).toHaveLength(1); // PlanStarted updates the proposed entry
+    expect(s.plans[0]).toMatchObject({
+      outcome: 'running',
+      steps: 3,
+      struck: 1,
+      supervision: 'confirm-once',
+      stepsDone: 2,
+    });
+    s = reduce(s, {
+      kind: 'event',
+      event: { type: 'PlanCompleted', at: 5, person: 'ava-chen', planId: 'p1', outcome: 'completed' },
+    });
+    expect(s.plans[0].outcome).toBe('completed');
+  });
+
+  it('records a declined plan (proposed, never started)', () => {
+    const events: SimEvent[] = [
+      { type: 'PlanProposed', at: 1, person: 'ava-chen', planId: 'p2', goal: 'Message Sam', steps: 2 },
+      { type: 'PlanCompleted', at: 2, person: 'ava-chen', planId: 'p2', outcome: 'declined' },
+    ];
+    const s = events.reduce(
+      (acc, event) => reduce(acc, { kind: 'event', event }),
+      freshState(),
+    );
+    expect(s.plans[0]).toMatchObject({ outcome: 'declined', stepsDone: 0 });
+  });
+
   it('hydrate replays a persisted log to the same derived state', () => {
     const live = reduce(freshState(), { kind: 'event', event: msg });
     const replayed = hydrate(live.log);

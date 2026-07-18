@@ -36,16 +36,24 @@ export interface Reminder {
   related: string[];
 }
 
-/** Derived record of a runtime plan the assistant ran. */
+/** Derived record of a runtime plan through its whole lifecycle. */
 export interface PlanRun {
   planId: string;
   person: string;
   goal: string;
   steps: number;
   at: number;
-  outcome: 'running' | 'completed' | 'cancelled';
+  /**
+   * Lifecycle: 'proposed' (previewed, not yet approved) -> 'running' ->
+   * 'completed' | 'cancelled' (aborted mid-run) | 'declined' (never started).
+   */
+  outcome: 'proposed' | 'running' | 'completed' | 'cancelled' | 'declined';
   /** Supervision level the run was started with (absent on old logs). */
   supervision?: string;
+  /** Steps the user struck from the proposal before running (plan editing). */
+  struck?: number;
+  /** How many steps have finished so far (per-step telemetry). */
+  stepsDone: number;
 }
 
 /** Runtime (mutable) world state, all derived from the event log. */
@@ -150,7 +158,7 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
           },
         ],
       };
-    case 'PlanStarted':
+    case 'PlanProposed':
       return {
         ...state,
         plans: [
@@ -161,10 +169,39 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
             goal: event.goal,
             steps: event.steps,
             at: event.at,
-            outcome: 'running',
-            supervision: event.supervision,
+            outcome: 'proposed',
+            stepsDone: 0,
           },
         ],
+      };
+    case 'PlanStarted': {
+      // Usually updates the 'proposed' entry in place; creates one for logs
+      // predating PlanProposed (or plans started without a preview).
+      const existing = state.plans.find((p) => p.planId === event.planId);
+      const started: PlanRun = {
+        planId: event.planId,
+        person: event.person,
+        goal: event.goal,
+        steps: event.steps, // the run's (possibly trimmed) step count
+        at: existing?.at ?? event.at,
+        outcome: 'running',
+        supervision: event.supervision,
+        struck: event.struck,
+        stepsDone: 0,
+      };
+      return {
+        ...state,
+        plans: existing
+          ? state.plans.map((p) => (p.planId === event.planId ? started : p))
+          : [...state.plans, started],
+      };
+    }
+    case 'PlanStepCompleted':
+      return {
+        ...state,
+        plans: state.plans.map((p) =>
+          p.planId === event.planId ? { ...p, stepsDone: p.stepsDone + 1 } : p,
+        ),
       };
     case 'PlanCompleted':
       return {

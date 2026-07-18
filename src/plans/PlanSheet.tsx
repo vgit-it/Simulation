@@ -6,8 +6,8 @@ import type { Plan, Supervision } from './types';
 interface PlanSheetProps {
   /** The plan to preview, or null when nothing is pending (sheet hidden). */
   plan: Plan | null;
-  /** Run the (possibly step-trimmed) plan at the chosen supervision level. */
-  onRun: (plan: Plan, supervision: Supervision) => void;
+  /** Run the (possibly step-trimmed) plan; `struck` = steps edited out. */
+  onRun: (plan: Plan, supervision: Supervision, struck: number) => void;
   onCancel: () => void;
 }
 
@@ -55,7 +55,7 @@ export function PlanSheet({ plan, onRun, onCancel }: PlanSheetProps) {
 
   function run() {
     if (!shown || !runnable) return;
-    onRun({ ...shown, steps: kept }, supervision);
+    onRun({ ...shown, steps: kept }, supervision, skipped.size);
   }
 
   return (

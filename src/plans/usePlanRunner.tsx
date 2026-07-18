@@ -21,8 +21,11 @@ export interface ActivePlan {
 
 export interface PlanRunner {
   active: ActivePlan | null;
-  /** Begin executing a plan (records PlanStarted, drives the phone). */
-  start: (plan: Plan, supervision?: Supervision) => void;
+  /**
+   * Begin executing a plan (records PlanStarted, drives the phone). `struck`
+   * is how many proposed steps the user edited out before running (telemetry).
+   */
+  start: (plan: Plan, supervision?: Supervision, struck?: number) => void;
   /** Abort the running plan (records PlanCompleted 'cancelled'). */
   cancel: () => void;
   /** Advance past the current action step once its proposal is committed. */
@@ -58,9 +61,28 @@ export function usePlanRunner(): PlanRunner {
   stateRef.current = state;
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  /** Per-step telemetry: record that a plan's current step finished. */
+  const recordStepDone = useCallback(
+    (a: ActivePlan) => {
+      const step = a.plan.steps[a.stepIndex];
+      if (!step) return;
+      dispatch({
+        type: 'PlanStepCompleted',
+        at: stateRef.current.clock,
+        person: sessionRef.current.personId,
+        planId: a.plan.id,
+        stepIndex: a.stepIndex,
+        label: step.description,
+      });
+    },
+    [dispatch],
+  );
 
   const start = useCallback(
-    (plan: Plan, supervision: Supervision = 'confirm-each') => {
+    (plan: Plan, supervision: Supervision = 'confirm-each', struck = 0) => {
       dispatch({
         type: 'PlanStarted',
         at: stateRef.current.clock,
@@ -69,6 +91,7 @@ export function usePlanRunner(): PlanRunner {
         goal: plan.goal,
         steps: plan.steps.length,
         supervision,
+        struck,
       });
       setActive({ plan, stepIndex: 0, supervision, proposal: null });
     },
@@ -91,10 +114,11 @@ export function usePlanRunner(): PlanRunner {
   }, [dispatch]);
 
   const onProposalSent = useCallback(() => {
+    if (activeRef.current) recordStepDone(activeRef.current);
     setActive((a) =>
       a ? { ...a, proposal: null, stepIndex: a.stepIndex + 1 } : null,
     );
-  }, []);
+  }, [recordStepDone]);
 
   useEffect(() => {
     if (!active || active.proposal) return; // idle, or paused on approval
@@ -118,6 +142,7 @@ export function usePlanRunner(): PlanRunner {
     // 'auto' skips the walkthrough entirely: navigate steps are no-ops and
     // nothing drives the phone screen — only the effects land.
     if (auto && !step.intent) {
+      recordStepDone(active);
       setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null));
       return;
     }
@@ -142,15 +167,16 @@ export function usePlanRunner(): PlanRunner {
       // Supervised-once / auto: the Run tap was the approval — commit now,
       // then advance after a beat (long enough to watch in 'confirm-once').
       commit(proposal, dispatch);
-      const id = setTimeout(
-        () => setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null)),
-        auto ? AUTO_BEAT_MS : NAV_BEAT_MS,
-      );
+      const id = setTimeout(() => {
+        recordStepDone(active);
+        setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null));
+      }, auto ? AUTO_BEAT_MS : NAV_BEAT_MS);
       return () => clearTimeout(id);
     }
 
     // Navigate/gather step: linger, then advance.
     const id = setTimeout(() => {
+      recordStepDone(active);
       setActive((a) => (a ? { ...a, stepIndex: a.stepIndex + 1 } : null));
     }, NAV_BEAT_MS);
     return () => clearTimeout(id);
