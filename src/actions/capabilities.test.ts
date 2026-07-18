@@ -100,6 +100,54 @@ describe('create-reminder capability', () => {
   });
 });
 
+describe('proposal amend (editable proposals)', () => {
+  it('share: removing a recipient rewrites the events, not just the display', () => {
+    const ctx = assembleContext(session, freshState());
+    // img-001 (sam) + img-003-ish: use two photos with different people via
+    // the full gallery draft; start from whatever the draft recipients are.
+    const original = capabilityFor('share-photos').propose(ctx, [
+      'img-001',
+      'img-002',
+    ]);
+    expect(original.amend).toBeDefined();
+    expect(original.recipients.length).toBeGreaterThan(1);
+    const keep = original.recipients[0];
+    const amended = original.amend!({ recipientIds: [keep.id] });
+    expect(amended.recipients.map((r) => r.id)).toEqual([keep.id]);
+    const sent = amended.events.find((e) => e.type === 'MessageSent');
+    expect(sent).toMatchObject({ to: [keep.id] });
+    // One FactRecorded per remaining recipient.
+    expect(amended.events.filter((e) => e.type === 'FactRecorded')).toHaveLength(1);
+  });
+
+  it('share: edits accumulate (message edit survives a later recipient edit)', () => {
+    const ctx = assembleContext(session, freshState());
+    const original = capabilityFor('share-photos').propose(ctx, ['img-001']);
+    const step1 = original.amend!({ message: 'Custom note' });
+    const step2 = step1.amend!({ recipientIds: [] });
+    expect(step2.message).toBe('Custom note');
+    expect(step2.invalidReason).toBeDefined(); // no recipients left
+  });
+
+  it('send-message: clearing the text makes it invalid instead of resurrecting the draft', () => {
+    const ctx = assembleContext(session, freshState());
+    const original = capabilityFor('send-message').propose(ctx, ['sam-ruiz']);
+    const cleared = original.amend!({ message: '' });
+    expect(cleared.message).toBe('');
+    expect(cleared.invalidReason).toBeDefined();
+  });
+
+  it('create-reminder: message edit rewrites the title in the event', () => {
+    const ctx = assembleContext(session, freshState());
+    const original = capabilityFor('create-reminder').propose(ctx, [], {
+      title: 'old title',
+    });
+    const amended = original.amend!({ message: 'new title' });
+    const created = amended.events.find((e) => e.type === 'ReminderCreated');
+    expect(created).toMatchObject({ title: 'new title' });
+  });
+});
+
 describe('viableCapabilities', () => {
   it('excludes selection-requiring capabilities when nothing is selected', () => {
     const ctx = assembleContext(session, freshState());

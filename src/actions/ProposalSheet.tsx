@@ -15,32 +15,54 @@ const SENT_BEAT_MS = 700;
 
 /**
  * A bottom-sheet that previews a Proposal and lets the user approve it with one
- * tap (Send). This is the seam the M2 assistant surface builds on. Render it
+ * tap — or edit it first: the message text is editable in place and recipients
+ * are removable chips. Edits go through the proposal's own `amend`, which
+ * re-derives the events, so what's on screen is exactly what commits. Render it
  * unconditionally with a nullable proposal; it animates itself in and out.
  */
 export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps) {
   const { dispatch } = useStore();
   const [sent, setSent] = useState(false);
+  // The user's edited version of the incoming proposal (reset per proposal).
+  const [edited, setEdited] = useState<Proposal | null>(null);
   // Keep the last proposal so the content stays visible during the slide-down
   // exit after send/cancel clears it.
   const lastRef = useRef<Proposal | null>(null);
   if (proposal) lastRef.current = proposal;
-  const shown = proposal ?? lastRef.current;
+  const incoming = proposal ?? lastRef.current;
+  const shown = edited ?? incoming;
 
   useEffect(() => {
-    if (proposal) setSent(false);
-  }, [proposal]);
+    if (proposal) {
+      setSent(false);
+      setEdited(null);
+    }
+  }, [proposal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onSend() {
     if (!proposal) return;
     // State correctness first: commit immediately, never gated on animation.
-    commit(proposal, dispatch);
+    commit(edited ?? proposal, dispatch);
     setSent(true);
     setTimeout(onSent, prefersReducedMotion() ? 0 : SENT_BEAT_MS);
   }
 
+  function editMessage(text: string) {
+    if (shown?.amend) setEdited(shown.amend({ message: text }));
+  }
+
+  function removeRecipient(id: string) {
+    if (!shown?.amend) return;
+    setEdited(
+      shown.amend({
+        recipientIds: shown.recipients.filter((r) => r.id !== id).map((r) => r.id),
+      }),
+    );
+  }
+
   if (!shown) return null;
   const canSend = !shown.invalidReason;
+  const editable = Boolean(shown.amend) && !sent;
   const confirmLabel = shown.confirmLabel ?? 'Send';
   const doneLabel = confirmLabel === 'Send' ? '✓ Sent' : '✓ Done';
 
@@ -55,18 +77,43 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
           {shown.recipients.map((r) => (
             <span
               key={r.id}
-              className="type-body-sm flex items-center gap-1.5 rounded-ds-full bg-text/10 py-1 pl-1.5 pr-3"
+              className="type-body-sm flex items-center gap-1.5 rounded-ds-full bg-text/10 py-1 pl-1.5 pr-2"
             >
               <span className="text-base">{r.avatar}</span>
               {r.name}
+              {editable && (
+                <button
+                  aria-label={`Remove ${r.name}`}
+                  onClick={() => removeRecipient(r.id)}
+                  className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-text/10 text-[10px] text-muted transition duration-150 active:scale-90"
+                >
+                  ✕
+                </button>
+              )}
             </span>
           ))}
         </div>
       )}
 
-      <div className="type-body mt-space-md rounded-card bg-bg/60 p-space-md text-text/90 ring-1 ring-text/5">
-        {shown.message}
-      </div>
+      {editable ? (
+        <textarea
+          value={shown.message}
+          onChange={(e) => editMessage(e.target.value)}
+          rows={3}
+          aria-label="Edit message"
+          className="type-body mt-space-md w-full resize-none rounded-card bg-bg/60 p-space-md text-text/90 ring-1 ring-text/5 focus:outline-none focus:ring-accent/40"
+        />
+      ) : (
+        <div className="type-body mt-space-md rounded-card bg-bg/60 p-space-md text-text/90 ring-1 ring-text/5">
+          {shown.message}
+        </div>
+      )}
+
+      {shown.invalidReason && (
+        <p className="type-caption mt-space-sm text-muted">
+          ⚠️ {shown.invalidReason}
+        </p>
+      )}
 
       <div className="mt-space-xl flex gap-space-md">
         <button

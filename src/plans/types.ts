@@ -34,3 +34,16 @@ export interface Plan {
   goal: string;
   steps: PlanStep[];
 }
+
+/**
+ * How closely the user supervises a plan's action steps — the trust dial,
+ * chosen per-plan at the PlanSheet:
+ *  - 'confirm-each': pause at every action step's ProposalSheet (default).
+ *  - 'confirm-once': the Run tap is the one approval; actions auto-commit
+ *    while the phone still visibly walks app-by-app.
+ *  - 'auto': just do it — commit every step immediately with no walkthrough;
+ *    the receipt shows up in the activity feed.
+ * Regardless of level, an action whose proposal is invalid pauses for the
+ * user — autonomy never overrides a validity stop.
+ */
+export type Supervision = 'confirm-each' | 'confirm-once' | 'auto';

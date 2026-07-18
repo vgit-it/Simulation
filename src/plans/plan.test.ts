@@ -131,7 +131,7 @@ describe('resolvePlanStep', () => {
 });
 
 describe('plan run events fold into derived state', () => {
-  it('records a running plan and marks it completed', () => {
+  it('records a running plan (with its supervision level) and marks it completed', () => {
     const log = [
       {
         type: 'PlanStarted' as const,
@@ -140,6 +140,7 @@ describe('plan run events fold into derived state', () => {
         planId: 'plan_1',
         goal: 'Share 2 photos with Sam Ruiz',
         steps: 3,
+        supervision: 'confirm-once',
       },
       {
         type: 'PlanCompleted' as const,
@@ -151,6 +152,10 @@ describe('plan run events fold into derived state', () => {
     ];
     const runs = plansFor(hydrate(log), 'ava-chen');
     expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ outcome: 'completed', steps: 3 });
+    expect(runs[0]).toMatchObject({
+      outcome: 'completed',
+      steps: 3,
+      supervision: 'confirm-once',
+    });
   });
 });

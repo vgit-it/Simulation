@@ -240,7 +240,10 @@ saying what must be selected for it to apply), then register a matching
 the object ids acted on, `payload` carries free-form inputs (message text, a
 reminder title) drafted by the brain or typed by the user; a `Proposal` that
 can't commit sets `invalidReason` (and may override the confirm button via
-`confirmLabel`). The registry is built by joining the two at load and fails
+`confirmLabel`). Supply an `amend(edit)` that re-calls the impl with payload
+overrides so the proposal is user-editable in the sheet (message text,
+removable recipients) — the edit re-derives the events, keeping what's shown
+identical to what commits. The registry is built by joining the two at load and fails
 loudly on any mismatch (declared-but-unimplemented or implemented-but-
 undeclared). Add an event to `SimEvent` (`src/state/events.ts`) + reducer
 handling if it changes derived state; render its `Proposal` (reuse
@@ -519,6 +522,32 @@ vocabulary — no plan-engine edits, exactly as designed.
   chains the message to the share's recipients (and skips the redundant
   confirm hop).
 
+### Agent harness IV — supervision & trust ✅ (current, pre-M5)
+
+Roadmap stage ②: the trust dial. How closely you supervise a plan is now a
+per-plan choice, and every drafted proposal is editable before it commits.
+
+- **Supervision levels** (`Supervision`, `src/plans/types.ts`), picked at the
+  `PlanSheet`: `confirm-each` (pause at every action's ProposalSheet — the
+  default), `confirm-once` ("Watch it run": the Run tap is the one approval;
+  actions auto-commit while the phone still walks app-by-app), and `auto`
+  ("Just do it": every step commits back-to-back with no walkthrough — the
+  receipt appears in the activity feed). An **invalid proposal always pauses**,
+  whatever the level — autonomy never overrides a validity stop. The chosen
+  level rides on `PlanStarted` and shows in the activity feed (telemetry for
+  track ⑥).
+- **Editable proposals**: `Proposal` gained `amend(edit) -> Proposal` — each
+  capability re-derives its own display fields AND events from an edit, so
+  what's on screen is exactly what commits. `ProposalSheet` renders the message
+  as an editable textarea and recipients as removable chips; edits accumulate
+  (payload overrides thread through re-proposal). Clearing required content
+  flips the proposal invalid rather than resurrecting the draft.
+- **Plan editing**: tap a step in the `PlanSheet` to strike it from the run
+  (struck steps show crossed out; Run disables if no action step remains).
+
+Deferred from track ②: interrupt-&-takeover (detect the user doing a paused
+step manually and skip ahead).
+
 ### Roadmap — enhancement tracks (post-harness II)
 
 Six tracks, ordered by leverage. Tracks 1–4 and 6 are staged below; track 5 is
@@ -555,7 +584,7 @@ M5 and track "shells" is M6. Each stage is one PR-sized change.
 
 **Staged sequence:** ① capability breadth (Reminders + `send-message` + new
 selection kinds) ✅ (landed as harness III) → ② supervision levels + editable
-proposals → ③ situated
+proposals ✅ (landed as harness IV) → ③ situated
 brain → ④ resident autopilot → ⑤ M5 LLM + eval fixtures, with instrumentation
 (⑥) alongside whichever stage runs the first study. Rationale: supervision is
 only interesting once plans have multiple real actions to supervise; the LLM
