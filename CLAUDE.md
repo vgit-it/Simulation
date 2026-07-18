@@ -150,8 +150,8 @@ src/
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
-  assistant/                   # persistent assistant: suggestions + threaded chat + activity feed
-    control.tsx                # AssistantControlProvider: sheet open/close + the bound conversation thread
+  assistant/                   # the invoked assistant: ambient glow bar -> latest-reply card
+    control.tsx                # AssistantControlProvider: surface open/close + the bound conversation thread
   autopilot/                   # resident behaviors: dueAutopilotActions + useAutopilot (world acts back)
   plans/                       # runtime plans: brain-generated cross-app step sequences
     types.ts                   # Plan + PlanStep (navigate/gather vs action steps)
@@ -736,7 +736,7 @@ Deferred: an in-app comparison view (the analysis lives in the export for
 now), per-proposal edit telemetry (which fields were amended), multi-session
 aggregation.
 
-### Assistant app — conversation threads ✅ (current, pre-M5)
+### Assistant app — conversation threads ✅ (pre-M5)
 
 Assistant conversations are now threads, and the phone has an **Assistant
 app** listing them (installed on all six phones).
@@ -763,6 +763,34 @@ app** listing them (installed on all six phones).
 Deferred: cross-thread memory (each conversation is independent context for
 the brain), thread deletion/renaming, surfacing plan runs inside the thread
 that spawned them.
+
+### Invoked assistant redesign — ambient surface ✅ (current, pre-M5)
+
+The invoked assistant is no longer a full sheet: it's an ambient bottom
+surface with two states, floating over whatever screen is behind.
+
+- **Invoke (FAB)**: a theme-accent glow rises from the bottom edge (two
+  hue-shifted radial gradients — all derived from `--sim-accent`, so each
+  resident's phone glows in their color), with the brain's TOP suggestion as
+  a hint pill and an auto-focused input ("How can I help?"). Tapping the pill
+  proposes immediately (ProposalSheet), exactly like the old suggestion rows.
+  Tapping anywhere outside dismisses — there is no chrome.
+- **Reply**: a large accent-tinted card (`color-mix` of accent into surface;
+  `rounded-screen` corners) shows **only the latest assistant response** in
+  headline type — the invoked experience always faces forward. Asking again
+  swaps the card's content (typing-dots beat between). The full thread still
+  records to the event log and reads in the Assistant app; resuming a thread
+  shows its latest reply while the brain receives the whole history. In
+  llm-dry-run mode the payload renders in the card body.
+- **Displaced sections**: the Recent-activity feed (sent items + plan runs)
+  moved into the Assistant app under the thread list; suggestions beyond the
+  top one are not shown anywhere (the FAB badge/halo still signals them).
+- Plans and proposals are untouched: a plan reply still closes the surface
+  and opens the PlanSheet -> runner -> HUD path.
+
+Deferred: multi-suggestion access from the surface (only the top one is
+reachable), a transcript affordance inside the surface (read the thread
+without leaving), voice-style input.
 
 ### M5 — Real LLM provider (remaining)
 
