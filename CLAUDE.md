@@ -138,6 +138,7 @@ src/
     reducer.ts                 # apply/reduce/hydrate + RuntimeState
     selectors.ts               # selectNow, messagesFrom/Involving, inboxThreads, ...
     persistence.ts             # localStorage load/save/clear of the log
+    trace.ts                   # research overlay: wall-clock + tap trace per event; session export
     store.tsx                  # StoreProvider, useStore, useNow
   session/                     # POV: embodied person+device + the live on-screen Selection
   intelligence/                # IntelligenceProvider.for(personId) -> person brain
@@ -284,6 +285,17 @@ their point of view. Attachments render via `resolveAsset(senderId, assetId)`.
 **Read/track runtime data:** read via selectors (`src/state/selectors.ts`) and a
 `useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
 log is persisted automatically, so anything you record survives reloads.
+
+**Export a study session:** the DevBar's **⬇ Export** downloads the session as
+JSON — the full event log plus its **trace** (`src/state/trace.ts`): one
+`{seq, type, simAt, wallAt, taps}` entry per dispatched event, stamping
+wall-clock time and the cumulative in-phone tap count (a capture-phase pointer
+listener on the `DeviceFrame` screen; out-of-phone chrome doesn't count). The
+sim log stays purely sim-clocked — `trace.ts` is the ONE module allowed
+`Date.now()`, because it measures the human, not the sim. From the export an
+analyst computes taps/seconds between any two log points, e.g. manual-path vs
+assistant-path for the same task. The trace persists beside the log and clears
+on **Reset world**.
 
 **Add a scenario:** author `world/scenarios/<id>.md` with `id`, `name`,
 `description`, and a `steps:` list of `clock` (advance the sim clock), `focus`
@@ -519,9 +531,10 @@ free-form request across apps, showing every step.
 This is the harness M5's real model plugs into unchanged: the LLM brain returns
 the same `Plan`/`ChatReply` shape (its tool/capability calls) and everything
 downstream — preview, execution, approval, persistence — already works.
-Deferred: `PlanStepCompleted` events (per-step persistence), branching/
-conditional plans, an "auto-approve" supervision level that commits action steps
-without pausing, plans that span multiple people's devices.
+Deferred: `PlanStepCompleted` events (per-step persistence — landed in harness
+VII), branching/conditional plans, an "auto-approve" supervision level that
+commits action steps without pausing (landed in harness IV), plans that span
+multiple people's devices.
 
 ### Agent harness III — capability breadth ✅ (current, pre-M5)
 
@@ -660,13 +673,14 @@ M5 and track "shells" is M6. Each stage is one PR-sized change.
 selection kinds) ✅ (landed as harness III) → ② supervision levels + editable
 proposals ✅ (landed as harness IV) → ③ situated
 brain ✅ (landed as harness V) → ④ resident autopilot ✅ (landed as harness
-VI) → ⑤ M5 LLM + eval fixtures, with instrumentation
-(⑥) alongside whichever stage runs the first study. Rationale: supervision is
+VI) → ⑥ research instrumentation ✅ (landed as harness VII) → ⑤ M5 LLM +
+eval fixtures. Rationale: supervision is
 only interesting once plans have multiple real actions to supervise; the LLM
 goes late because every earlier track makes its job better-defined while the
-swap stays cheap by design.
+swap stays cheap by design; instrumentation landed just before the LLM so the
+first real-model sessions are measured from day one.
 
-### M5 groundwork — LLM dry-run harness ✅ (current)
+### M5 groundwork — LLM dry-run harness ✅
 
 Everything except the network call. `LLMIntelligence`
 (`src/intelligence/llm/`) implements `PersonIntelligence` behind the existing
@@ -690,6 +704,35 @@ precisely what the model would see. Everything that isn't the decider seam
 (grouping, drafts, suggestions, plans) delegates to the mock, so the phone
 stays fully usable — and token-free — in dry-run mode. The mock remains the
 default provider (principle 8).
+
+### Agent harness VII — research instrumentation ✅ (current, pre-M5)
+
+Roadmap track ⑥: the prototype is now an instrument. The event log is the
+telemetry substrate; a parallel **trace** adds the human-side measurements.
+
+- **Full plan lifecycle in the log**: `PlanProposed` (the PlanSheet was
+  shown — recorded before any approval, so declined plans leave a trail),
+  `PlanStepCompleted` per finished step (closing the harness-II deferral),
+  `PlanStarted.struck` (steps the user edited out before running), and a
+  `declined` outcome on `PlanCompleted` (dismissed at the preview, never run)
+  next to `completed`/`cancelled`. `PlanRun` folds it all —
+  `outcome: proposed|running|completed|cancelled|declined`, `struck`,
+  `stepsDone` — and the activity feed shows struck counts and declined runs.
+- **The trace** (`src/state/trace.ts`): the store's `dispatch` stamps every
+  event with `{seq, type, simAt, wallAt, taps}` — wall-clock time plus the
+  cumulative in-phone tap count (capture-phase pointer listener on the
+  `DeviceFrame` screen). The sim log stays purely deterministic; the trace is
+  the one sanctioned home for `Date.now()` (it measures the human, not the
+  sim) and nothing in sim behavior reads it. Persisted beside the log; cleared
+  by Reset world.
+- **Session export**: DevBar **⬇ Export** downloads
+  `{version, exportedAt, simClock, provider, taps, events, trace}` as JSON.
+  Taps/seconds between any two log points — manual path vs assistant path for
+  the same task — are computable offline from one file.
+
+Deferred: an in-app comparison view (the analysis lives in the export for
+now), per-proposal edit telemetry (which fields were amended), multi-session
+aggregation.
 
 ### M5 — Real LLM provider (remaining)
 

@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import { countTap } from '../state';
 import { OverlayPortalContext } from '../ui';
 import { StatusBar } from './StatusBar';
 
@@ -25,8 +26,13 @@ export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) 
       style={themeVars}
       className="relative h-[844px] max-h-[94vh] w-[390px] max-w-[94vw] rounded-[54px] bg-black p-3 shadow-2xl ring-1 ring-white/10"
     >
-      {/* transition-colors lets themes cross-blend when the POV switches. */}
-      <div className="relative flex h-full w-full flex-col overflow-hidden rounded-screen bg-bg font-sim text-text transition-colors duration-500">
+      {/* transition-colors lets themes cross-blend when the POV switches.
+          Capture-phase tap counting feeds the research trace: every physical
+          interaction with the screen counts, out-of-phone chrome doesn't. */}
+      <div
+        onPointerDownCapture={countTap}
+        className="relative flex h-full w-full flex-col overflow-hidden rounded-screen bg-bg font-sim text-text transition-colors duration-500"
+      >
         {/* notch */}
         <div className="absolute left-1/2 top-0 z-20 h-7 w-40 -translate-x-1/2 rounded-b-2xl bg-black" />
         <StatusBar />

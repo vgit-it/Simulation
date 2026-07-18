@@ -1,6 +1,6 @@
 import { activeProviderName, switchProvider } from '../intelligence';
 import { useHeroDevices, useSession } from '../session';
-import { useNow, useStore } from '../state';
+import { buildSessionExport, useNow, useStore } from '../state';
 import { world } from '../world';
 import type { Screen } from './Phone';
 
@@ -42,6 +42,20 @@ export function DevBar({ onScreenChange }: DevBarProps) {
   function switchPerson(personId: string) {
     setPerson(personId);
     onScreenChange({ kind: 'locked' });
+  }
+
+  // Download the study session: the event log + its wall-clock/tap trace.
+  function exportSession() {
+    const data = buildSessionExport(state, activeProviderName());
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sim-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -95,6 +109,14 @@ export function DevBar({ onScreenChange }: DevBarProps) {
           title="Clear all runtime state (sent messages, tracked facts)"
         >
           ↺ Reset world
+        </button>
+
+        <button
+          onClick={exportSession}
+          className="rounded-full bg-white/5 px-3 py-1 transition-colors duration-150 hover:bg-white/10"
+          title="Download this session as JSON: the event log plus its wall-clock/tap trace, for analysis"
+        >
+          ⬇ Export
         </button>
 
         <button

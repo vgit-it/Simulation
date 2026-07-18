@@ -71,6 +71,19 @@ export interface ReminderCreatedEvent {
   related: string[];
 }
 
+/**
+ * The assistant proposed a runtime plan (the PlanSheet was shown). Recorded
+ * BEFORE any approval so declined plans leave a telemetry trail too.
+ */
+export interface PlanProposedEvent {
+  type: 'PlanProposed';
+  at: number;
+  person: string;
+  planId: string;
+  goal: string;
+  steps: number;
+}
+
 /** The assistant began executing a runtime plan for a person. */
 export interface PlanStartedEvent {
   type: 'PlanStarted';
@@ -81,15 +94,32 @@ export interface PlanStartedEvent {
   steps: number;
   /** The supervision level the user chose ('confirm-each' | 'confirm-once' | 'auto'). */
   supervision?: string;
+  /** How many proposed steps the user struck out before running (plan editing). */
+  struck?: number;
 }
 
-/** A runtime plan finished executing (all steps done, or cancelled). */
+/** One step of a running plan finished (committed or auto-advanced). */
+export interface PlanStepCompletedEvent {
+  type: 'PlanStepCompleted';
+  at: number;
+  person: string;
+  planId: string;
+  stepIndex: number;
+  /** The step's checklist description (readable telemetry). */
+  label: string;
+}
+
+/**
+ * A runtime plan reached a terminal state: every step done ('completed'),
+ * aborted mid-run ('cancelled'), or dismissed at the preview sheet without
+ * ever starting ('declined').
+ */
 export interface PlanCompletedEvent {
   type: 'PlanCompleted';
   at: number;
   person: string;
   planId: string;
-  outcome: 'completed' | 'cancelled';
+  outcome: 'completed' | 'cancelled' | 'declined';
 }
 
 export type SimEvent =
@@ -100,7 +130,9 @@ export type SimEvent =
   | ThreadReadEvent
   | ChatMessageEvent
   | ReminderCreatedEvent
+  | PlanProposedEvent
   | PlanStartedEvent
+  | PlanStepCompletedEvent
   | PlanCompletedEvent;
 
 let counter = 0;
