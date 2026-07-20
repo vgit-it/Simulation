@@ -39,3 +39,16 @@ export const INTELLIGENCE_PROVIDER: IntelligenceProviderName = 'mock';
  * did before its own announced shutdown date).
  */
 export const GEMINI_MODEL_DEFAULT = 'gemini-flash-latest';
+
+/**
+ * Backup Gemini models, tried in order when the primary model is unavailable —
+ * overloaded (HTTP 503 "high demand"), rate-limited (429), or hitting a
+ * transient 500. `gemini-flash-lite-latest` is Google's maintained alias for
+ * the lighter, higher-throughput flash-lite line: a genuine *downgrade* (a
+ * smaller/cheaper model with its own capacity) that tends to stay reachable
+ * when the flagship flash line spikes. Same self-updating-alias rationale as
+ * `GEMINI_MODEL_DEFAULT` — no dated snapshot to go stale. Whatever model the
+ * user has configured is always tried first; these follow only if it fails
+ * with a retryable status, so a working primary is never bypassed.
+ */
+export const GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest'];

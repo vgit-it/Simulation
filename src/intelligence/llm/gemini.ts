@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { capabilityFor } from '../../actions';
+import { GEMINI_FALLBACK_MODELS } from '../../config';
 import type { ContextBundle } from '../../context';
 import { uid } from '../../state';
 import type { Plan, PlanStep } from '../../plans/types';
@@ -32,6 +33,31 @@ import { buildLLMRequest, type LLMRequest } from './prompt';
  */
 
 const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/**
+ * An HTTP-level Gemini failure that carries the status code, so the caller can
+ * decide whether it's worth downgrading to a backup model. Overload/quota/
+ * transient statuses (see `RETRYABLE_STATUSES`) are worth a lighter model with
+ * its own capacity; anything else (bad key, bad request) is not.
+ */
+export class GeminiHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'GeminiHttpError';
+  }
+}
+
+/**
+ * Statuses where downgrading to a backup model is worth a shot: 503 (the model
+ * is overloaded — "high demand"), 429 (rate-limited on this model), 500 (a
+ * transient server error). A lighter model has separate capacity and may
+ * answer when the flagship is spiking. Other statuses (401/403 bad key, 400
+ * bad request) are the same on every model, so we fail fast instead.
+ */
+const RETRYABLE_STATUSES = new Set([429, 500, 503]);
 
 interface GeminiBody {
   contents: { role: 'user' | 'model'; parts: { text: string }[] }[];
@@ -95,7 +121,7 @@ export async function callGemini(
     } catch {
       // Non-JSON error body — the status alone will have to do.
     }
-    throw new Error(`Gemini ${res.status}${detail}`);
+    throw new GeminiHttpError(res.status, `Gemini ${res.status}${detail}`);
   }
   const data = await res.json();
   const candidate = data?.candidates?.[0];
@@ -116,6 +142,41 @@ export async function callGemini(
     );
   }
   return text;
+}
+
+/**
+ * Call Gemini, downgrading through backup models when the primary is
+ * unavailable. Tries each model in `models` in order; on a *retryable* HTTP
+ * failure (503 overloaded / 429 rate-limited / 500 transient) it moves on to
+ * the next (lighter) model, so a "high demand" spike on the flagship falls back
+ * to flash-lite instead of surfacing an error. Any non-retryable failure (bad
+ * key, blocked content, truncation) throws immediately, since a downgrade
+ * wouldn't help. If every model is exhausted it throws the last error seen.
+ */
+export async function callGeminiWithFallback(
+  body: GeminiBody,
+  apiKey: string,
+  models: string[],
+): Promise<string> {
+  if (!models.length) throw new Error('no Gemini model configured');
+  let lastError: unknown;
+  for (const model of models) {
+    try {
+      return await callGemini(body, apiKey, model);
+    } catch (err) {
+      lastError = err;
+      const retryable =
+        err instanceof GeminiHttpError && RETRYABLE_STATUSES.has(err.status);
+      if (!retryable) throw err;
+      // Overloaded/rate-limited/transient — fall through to the next model.
+    }
+  }
+  throw lastError;
+}
+
+/** The model to try first, then the configured backups (deduped). */
+export function modelChain(primary: string): string[] {
+  return [primary, ...GEMINI_FALLBACK_MODELS.filter((m) => m && m !== primary)];
 }
 
 const stepSchema = z.object({
@@ -240,7 +301,11 @@ class GeminiPersonIntelligence implements PersonIntelligence {
   ): Promise<ChatReply> {
     const req = buildLLMRequest(ctx, history, message);
     const body = toGeminiRequest(req);
-    const text = await callGemini(body, this.apiKey(), this.model());
+    const text = await callGeminiWithFallback(
+      body,
+      this.apiKey(),
+      modelChain(this.model()),
+    );
     return parseChatReply(text);
   }
 }

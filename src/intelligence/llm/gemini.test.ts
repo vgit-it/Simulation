@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assembleContext } from '../../context';
 import { freshState } from '../../state';
 import { buildLLMRequest } from './prompt';
-import { callGemini, parseChatReply, toGeminiRequest } from './gemini';
+import {
+  callGemini,
+  callGeminiWithFallback,
+  modelChain,
+  parseChatReply,
+  toGeminiRequest,
+} from './gemini';
+import { GEMINI_FALLBACK_MODELS } from '../../config';
 
 const session = { personId: 'ava-chen', deviceId: 'ava-phone' };
 const req = buildLLMRequest(assembleContext(session, freshState()), [], 'hello');
@@ -184,5 +191,84 @@ describe('callGemini (network boundary)', () => {
       'gemini-flash-latest',
     );
     expect(text).toBe('{"text":"hi"}');
+  });
+});
+
+describe('model downgrade fallback', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** Queue of responses, one popped per fetch call, so we can script a 503
+   *  on the primary then a 200 on the backup. */
+  function mockFetchQueue(responses: Response[]) {
+    const queue = [...responses];
+    const fetchMock = vi.fn(async () => {
+      const next = queue.shift();
+      if (!next) throw new Error('fetch called more times than scripted');
+      return next;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+  const overloaded = () =>
+    ({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: { message: 'high demand' } }),
+    }) as Response;
+  const badKey = () =>
+    ({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { message: 'API key not valid' } }),
+    }) as Response;
+  const okText = (text: string) =>
+    ({
+      ok: true,
+      json: async () => ({
+        candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }],
+      }),
+    }) as Response;
+
+  it('modelChain puts the configured model first, then the backups', () => {
+    expect(modelChain('gemini-flash-latest')).toEqual([
+      'gemini-flash-latest',
+      ...GEMINI_FALLBACK_MODELS,
+    ]);
+  });
+
+  it('modelChain de-dupes when the configured model is already a backup', () => {
+    const backup = GEMINI_FALLBACK_MODELS[0];
+    expect(modelChain(backup)).toEqual([backup]);
+  });
+
+  it('downgrades to the backup model when the primary is overloaded (503)', async () => {
+    const fetchMock = mockFetchQueue([overloaded(), okText('{"text":"from lite"}')]);
+    const text = await callGeminiWithFallback(toGeminiRequest(req), 'key', [
+      'gemini-flash-latest',
+      'gemini-flash-lite-latest',
+    ]);
+    expect(text).toBe('{"text":"from lite"}');
+    expect(fetchMock).toHaveBeenCalledTimes(2); // primary failed, backup answered
+  });
+
+  it('does NOT downgrade on a non-retryable failure (e.g. bad key)', async () => {
+    const fetchMock = mockFetchQueue([badKey()]);
+    await expect(
+      callGeminiWithFallback(toGeminiRequest(req), 'key', [
+        'gemini-flash-latest',
+        'gemini-flash-lite-latest',
+      ]),
+    ).rejects.toThrow(/Gemini 400/);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // failed fast, backup never tried
+  });
+
+  it('throws the last error when every model is overloaded', async () => {
+    mockFetchQueue([overloaded(), overloaded()]);
+    await expect(
+      callGeminiWithFallback(toGeminiRequest(req), 'key', [
+        'gemini-flash-latest',
+        'gemini-flash-lite-latest',
+      ]),
+    ).rejects.toThrow(/Gemini 503/);
   });
 });
