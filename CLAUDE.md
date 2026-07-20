@@ -865,8 +865,11 @@ the JSON reply back into the existing `ChatReply`/`Plan` contract.
   `localStorage` (`sim-gemini-api-key` / `sim-gemini-model`), read at call time
   (edits need no reload; only switching provider reloads). The key never leaves
   the browser and is never committed — keeping the static GitHub Pages deploy
-  with no backend. Default model `gemini-2.5-flash`
-  (`GEMINI_MODEL_DEFAULT`, `src/config.ts`), editable in Settings.
+  with no backend. Default model `gemini-flash-latest`
+  (`GEMINI_MODEL_DEFAULT`, `src/config.ts`) — a Google-maintained alias that
+  Google hot-swaps to its current recommended release, so the shipped default
+  doesn't go stale every time a dated snapshot (e.g. `gemini-2.5-flash`) is
+  retired — editable in Settings.
 - The **mock stays the default/offline provider** (principle 8); dry-run
   remains as an inspector.
 
