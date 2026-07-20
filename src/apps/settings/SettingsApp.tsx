@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
-import { activeProviderName, switchProvider } from '../../intelligence';
+import { useState, type ReactNode } from 'react';
+import {
+  activeProviderName,
+  geminiApiKey,
+  geminiModel,
+  setGeminiApiKey,
+  setGeminiModel,
+  switchProvider,
+} from '../../intelligence';
+import type { IntelligenceProviderName } from '../../config';
 import { useScreenControl } from '../../phone/screen';
 import { useScenarioPlayer } from '../../scenarios/player';
 import { useHeroDevices, useSession } from '../../session';
@@ -7,6 +15,17 @@ import { buildSessionExport, useNow, useStore } from '../../state';
 import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
 import { world } from '../../world';
 import type { AppScreenProps } from '../types';
+
+const BRAIN_LABEL: Record<IntelligenceProviderName, string> = {
+  mock: '🧪 Mock brain',
+  'llm-dry-run': '🔌 LLM dry-run',
+  gemini: '🤖 Gemini',
+};
+
+/** Cycle the Brain mode: mock → llm-dry-run → gemini → mock. */
+function nextProvider(p: IntelligenceProviderName): IntelligenceProviderName {
+  return p === 'mock' ? 'llm-dry-run' : p === 'llm-dry-run' ? 'gemini' : 'mock';
+}
 
 function timeLabel(d: Date): string {
   return d.toLocaleString('en-US', {
@@ -49,6 +68,10 @@ export function SettingsApp(_props: AppScreenProps) {
   const player = useScenarioPlayer();
   const people = Object.values(world.people);
   const provider = activeProviderName();
+  // Key/model are edited live (localStorage, no reload); only the provider
+  // switch reloads. Seed the inputs from storage.
+  const [apiKey, setApiKey] = useState(geminiApiKey);
+  const [model, setModel] = useState(geminiModel);
 
   function advanceClock(hours: number) {
     dispatch({
@@ -138,20 +161,43 @@ export function SettingsApp(_props: AppScreenProps) {
 
         <Section label="Brain">
           <div className="flex items-center justify-between gap-space-md">
-            <span className="type-body">
-              {provider === 'mock' ? '🧪 Mock brain' : '🔌 LLM dry-run'}
-            </span>
-            <PillButton
-              onClick={() =>
-                switchProvider(provider === 'mock' ? 'llm-dry-run' : 'mock')
-              }
-            >
+            <span className="type-body">{BRAIN_LABEL[provider]}</span>
+            <PillButton onClick={() => switchProvider(nextProvider(provider))}>
               Switch
             </PillButton>
           </div>
+          {provider === 'gemini' && (
+            <div className="mt-space-md flex flex-col gap-space-sm border-t border-text/5 pt-space-md">
+              <label className="type-caption text-muted">API key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  setGeminiApiKey(e.target.value);
+                }}
+                placeholder="Gemini API key"
+                autoComplete="off"
+                className="type-body-sm min-w-0 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
+              />
+              <label className="type-caption mt-space-xs text-muted">Model</label>
+              <input
+                value={model}
+                onChange={(e) => {
+                  setModel(e.target.value);
+                  setGeminiModel(e.target.value);
+                }}
+                placeholder="gemini-2.5-flash"
+                autoComplete="off"
+                className="type-body-sm min-w-0 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
+              />
+            </div>
+          )}
           <p className="type-caption mt-space-sm text-muted">
             Dry-run shows the exact API request a real model would receive — no
-            call is made. Switching reloads the phone.
+            call is made. Gemini sends it for real: your key stays in this
+            browser and calls the API directly. Switching brains reloads the
+            phone.
           </p>
         </Section>
 

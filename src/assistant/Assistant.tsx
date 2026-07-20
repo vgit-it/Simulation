@@ -4,6 +4,7 @@ import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
 import {
   intelligenceFor,
+  type ChatReply,
   type LLMRequest,
   type Suggestion,
 } from '../intelligence';
@@ -106,19 +107,19 @@ export function Assistant() {
     setProposal(propose(s.intent, ctx, s.ids, s.payload));
   }
 
-  function onChatSubmit(e: FormEvent) {
+  async function onChatSubmit(e: FormEvent) {
     e.preventDefault();
     const message = chatInput.trim();
     const thread = control.sessionId;
-    if (!message || !thread) return;
+    if (!message || thread === null || thinking) return;
     const ctx = assembleContext(session, state, {});
-    const reply = intelligenceFor(session.personId).respond(
-      ctx,
-      chatHistory.map((t) => ({ role: t.role, text: t.text })),
-      message,
-    );
     const at = state.clock;
     const person = session.personId;
+    const history = chatHistory.map((t) => ({ role: t.role, text: t.text }));
+
+    // Commit the user's turn and clear the box immediately — the reply is
+    // async (a real provider awaits the network), so the input can't wait on
+    // it. Typing dots show while we resolve.
     dispatch({
       type: 'ChatMessage',
       at,
@@ -127,6 +128,35 @@ export function Assistant() {
       text: message,
       session: thread,
     });
+    setChatInput('');
+    setThinking(true);
+
+    // Pace the reveal: race the reply against a minimum "thinking beat" so the
+    // (instant) mock still reads as an act, while a slow network call just
+    // takes as long as it takes. Reduced motion collapses the beat to 0.
+    const beat = new Promise<void>((resolve) => {
+      clearTimeout(thinkingTimer.current);
+      thinkingTimer.current = setTimeout(
+        resolve,
+        prefersReducedMotion() ? 0 : THINKING_BEAT_MS,
+      );
+    });
+
+    let reply: ChatReply;
+    try {
+      [reply] = await Promise.all([
+        intelligenceFor(person).respond(ctx, history, message),
+        beat,
+      ]);
+    } catch (err) {
+      reply = {
+        text: `Sorry — I couldn't reach the model. ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      };
+    }
+
+    setThinking(false);
     dispatch({
       type: 'ChatMessage',
       at,
@@ -135,10 +165,8 @@ export function Assistant() {
       text: reply.text,
       session: thread,
     });
-    setChatInput('');
-    // A task-shaped reply carries a plan. PlanProposed lands BEFORE any
-    // approval (and before the reveal beat), so declined plans leave a
-    // telemetry trail and the log never waits on animation.
+    // A task-shaped reply carries a plan. PlanProposed lands before approval so
+    // declined plans still leave a telemetry trail.
     if (reply.plan) {
       dispatch({
         type: 'PlanProposed',
@@ -149,22 +177,11 @@ export function Assistant() {
         steps: reply.plan.steps.length,
       });
     }
-    // Everything above is committed; now pace the on-screen reveal only —
-    // typing dots for a beat, then the reply (and plan preview / dry-run
-    // payload) appears.
-    setThinking(true);
-    clearTimeout(thinkingTimer.current);
-    thinkingTimer.current = setTimeout(
-      () => {
-        setThinking(false);
-        if (reply.llmRequest) setLastRequest(reply.llmRequest);
-        if (reply.plan) {
-          setPreviewPlan(reply.plan);
-          control.close();
-        }
-      },
-      prefersReducedMotion() ? 0 : THINKING_BEAT_MS,
-    );
+    if (reply.llmRequest) setLastRequest(reply.llmRequest);
+    if (reply.plan) {
+      setPreviewPlan(reply.plan);
+      control.close();
+    }
   }
 
   function runPlan(plan: Plan, supervision: Supervision, struck: number) {

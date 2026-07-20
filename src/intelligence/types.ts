@@ -83,11 +83,16 @@ export interface PersonIntelligence {
   /**
    * Reply to a free-form message in the assistant chat, given the full
    * context bundle (owner/device/state/situation) and the conversation so
-   * far. This is the exact seam an LLM-backed brain will implement in M5 —
-   * `ContextBundle`'s own doc comment calls it out as "the bundle an LLM
-   * decider would receive later."
+   * far. This is the exact seam an LLM-backed brain implements — the mock and
+   * dry-run providers resolve synchronously; a real provider (Gemini) awaits
+   * the network. Async is the contract so the consumer never has to branch on
+   * provider.
    */
-  respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply;
+  respond(
+    ctx: ContextBundle,
+    history: ChatTurn[],
+    message: string,
+  ): Promise<ChatReply>;
   /**
    * Decompose a free-form request into an ordered `Plan` over the capability
    * registry — the runtime equivalent of an authored scenario, generated after

@@ -813,8 +813,9 @@ All out-of-phone chrome is gone; the phone is self-contained.
   installed on all six phones — drop-a-file + one registry line, like any
   app) absorbed every proto control: **Simulation** (sim clock + `+1h`),
   **Point of view** (embody any resident; device switcher when a person has
-  several), **Brain** (mock / llm dry-run toggle — reloads), **Data** (Reset
-  world, Export session), and **Scenarios** (the scenario player). It declares
+  several), **Brain** (mock / llm dry-run / gemini cycle — reloads; Gemini
+  reveals a key/model input), **Data** (Reset world, Export session), and
+  **Scenarios** (the scenario player). It declares
   no actions, so the assistant's action space is unchanged. `DevBar` and
   `ScenarioBar` are deleted.
 - **Scenario playback lifted to the Stage** (`ScenarioPlayerProvider` /
@@ -838,16 +839,41 @@ All out-of-phone chrome is gone; the phone is self-contained.
 Deferred: a real recents UI, nav-bar Back popping in-app sub-views (apps keep
 their header back-chevrons), interrupt-&-takeover from track ②.
 
-### M5 — Real LLM provider (remaining)
+### M5 — Real LLM provider (Gemini) ✅
 
-Swap the dry-run tail of `respond()` for the real call: send
-`buildLLMRequest(...)`, parse the ChatReply/Plan JSON — nothing upstream
-changes. Decide the key strategy at that point (client-side key vs. serverless
-proxy) — GitHub Pages is static-only, so a real backend requires a serverless
-function. A Claude.ai Pro/Max subscription is not a valid backend for this
-(see above) — it must be a real Anthropic API key, held server-side. Add the
-eval-fixture harness (roadmap ⑤) alongside: (state, selection, request) →
-expected plan, mock as oracle. Keep the mock as the default/offline provider.
+The dry-run tail of `respond()` now has a real sibling: a **Gemini-backed
+brain** (`src/intelligence/llm/gemini.ts`), a third Brain mode
+(`mock → llm-dry-run → gemini`) selected in Settings. It sends the SAME
+neutral `LLMRequest` the dry-run provider shows — nothing upstream changed —
+translating it to Gemini's REST shape only at the network boundary and parsing
+the JSON reply back into the existing `ChatReply`/`Plan` contract.
+
+- **The decider seam is now async**: `respond()` returns `Promise<ChatReply>`
+  (`src/intelligence/types.ts`); the mock and dry-run providers resolve
+  instantly, Gemini awaits `fetch`. `Assistant.onChatSubmit` commits the user
+  turn immediately, shows the thinking beat, then `await`s the reply (racing a
+  minimum beat so the mock still paces), and on any thrown error dispatches a
+  friendly failure turn — a bad key or dropped network never crashes the chat.
+- **`gemini.ts`** is pure where it can be: `toGeminiRequest` (folds the tool
+  catalog into `systemInstruction`, remaps `assistant→model`, sets
+  `responseMimeType: application/json`), `callGemini` (direct browser `fetch`,
+  readable errors), and `parseChatReply` (zod-validated, synthesizes missing
+  plan/step ids, **drops steps whose `intent` isn't a real capability**,
+  degrades malformed output to plain text). Non-decider methods delegate to the
+  mock.
+- **Bring-your-own key**: pasted into Settings ▸ Brain, stored in
+  `localStorage` (`sim-gemini-api-key` / `sim-gemini-model`), read at call time
+  (edits need no reload; only switching provider reloads). The key never leaves
+  the browser and is never committed — keeping the static GitHub Pages deploy
+  with no backend. Default model `gemini-2.5-flash`
+  (`GEMINI_MODEL_DEFAULT`, `src/config.ts`), editable in Settings.
+- The **mock stays the default/offline provider** (principle 8); dry-run
+  remains as an inspector.
+
+Deferred: Gemini **function-calling** mode (native tool calls → PlanSteps —
+JSON structured output is the first cut); the eval-fixture harness (roadmap ⑤:
+(state, selection, request) → expected plan, mock as oracle); any server-side
+key/proxy (only needed for a public multi-user deploy).
 
 ### M6 — More device shells & richer visuals
 
