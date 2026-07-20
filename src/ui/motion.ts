@@ -10,6 +10,8 @@ export const EXIT = {
   app: 250,
   lock: 350,
   fade: 200,
+  /** Notification shade retract (mirrors the shade-out animation). */
+  shade: 250,
   /** Plan HUD: a 450ms readable hold (the completion beat) + 250ms fade. */
   hud: 700,
 } as const;

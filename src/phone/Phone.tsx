@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getApp, getDesignSystem, getDevice, getPerson, getTheme } from '../world';
 import { designToCssVars, themeToCssVars } from '../theme';
 import { useSession } from '../session';
-import { useStore } from '../state';
+import { notificationsFor, useStore } from '../state';
 import { appRegistry } from '../apps/registry';
 import { Assistant } from '../assistant/Assistant';
 import { EXIT, useMountTransition } from '../ui';
@@ -10,6 +10,7 @@ import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
 import { NavBar } from './NavBar';
+import { NotificationShade } from './NotificationShade';
 
 export type Screen =
   | { kind: 'locked' }
@@ -52,6 +53,19 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
   const appId = screen.kind === 'app' ? screen.appId : null;
   const lock = useMountTransition(locked, EXIT.lock);
   const app = useMountTransition(appId !== null, EXIT.app);
+
+  // Notifications are a fold over the log for the embodied person; the shade is
+  // the unlocked surface for them (the lock screen has its own stack).
+  const notifications = useMemo(
+    () => notificationsFor(state, session.personId),
+    [state, session.personId],
+  );
+  const [shadeOpen, setShadeOpen] = useState(false);
+  const shade = useMountTransition(shadeOpen && !locked, EXIT.shade);
+  // Picking up another phone (or locking) closes any open shade.
+  useEffect(() => {
+    setShadeOpen(false);
+  }, [session.personId, locked]);
   // Keeps the app renderer on screen while its close animation plays.
   const lastAppId = useRef<string | null>(null);
   if (appId) lastAppId.current = appId;
@@ -72,12 +86,35 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
     onScreenChange({ kind: 'app', appId: id });
   }
 
+  /** Open an app from the notification shade (tap → app, shade retracts). */
+  function openAppFromShade(id: string) {
+    setShadeOpen(false);
+    openApp(id);
+  }
+
+  /** Open an app from a lock-screen notification (unlock straight into it). */
+  function openAppFromLock(id: string) {
+    hasUnlocked.current = true;
+    openApp(id); // setting screen to an app clears `locked`, sliding the lock away
+  }
+
+  /** Dismiss all currently-showing notifications (Clear all). */
+  function clearNotifications() {
+    dispatch({
+      type: 'NotificationsCleared',
+      at: state.clock,
+      person: session.personId,
+    });
+  }
+
   const shownAppId = appId ?? lastAppId.current;
 
   return (
     <DeviceFrame
       themeVars={themeVars}
       overlay={!locked ? <Assistant /> : undefined}
+      notificationCount={locked ? 0 : notifications.length}
+      onOpenShade={locked ? undefined : () => setShadeOpen(true)}
     >
       {/* Base layer: home, revealed by unlock and by closing an app. */}
       <HomeScreen
@@ -111,6 +148,19 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
         <NavBar />
       </div>
 
+      {/* Notification shade: drops from the top over home/app (z-20). Only
+          reachable unlocked, so it never fights the lock layer. */}
+      {shade.mounted && !locked && (
+        <NotificationShade
+          ownerId={session.personId}
+          notifications={notifications}
+          closing={shade.closing}
+          onOpen={openAppFromShade}
+          onClear={clearNotifications}
+          onClose={() => setShadeOpen(false)}
+        />
+      )}
+
       {/* Lock layer: covers everything; slides away on unlock. */}
       {lock.mounted && (
         <div
@@ -128,6 +178,7 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
               hasUnlocked.current = true;
               onScreenChange({ kind: 'home' });
             }}
+            onOpenApp={openAppFromLock}
           />
         </div>
       )}

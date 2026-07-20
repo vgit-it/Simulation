@@ -63,6 +63,9 @@ export default {
         'app-out': { to: { opacity: '0', transform: 'scale(0.92)' } },
         'slide-up': { from: { transform: 'translateY(100%)' } },
         'slide-down': { to: { transform: 'translateY(100%)' } },
+        // Notification shade, dropping from / retracting to the top edge.
+        'shade-in': { from: { transform: 'translateY(-100%)' } },
+        'shade-out': { to: { transform: 'translateY(-100%)' } },
         'lock-away': { to: { opacity: '0', transform: 'translateY(-8%)' } },
         pop: {
           '0%': { opacity: '0', transform: 'scale(0.4)' },
@@ -94,6 +97,8 @@ export default {
         'app-out': 'app-out 250ms cubic-bezier(0.4, 0, 1, 1) both',
         'slide-up': 'slide-up 400ms cubic-bezier(0.32, 0.72, 0, 1) both',
         'slide-down': 'slide-down 300ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        'shade-in': 'shade-in 300ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        'shade-out': 'shade-out 250ms cubic-bezier(0.32, 0.72, 0, 1) both',
         'lock-away': 'lock-away 350ms cubic-bezier(0.32, 0.72, 0, 1) both',
         pop: 'pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
         breathe: 'breathe 2.6s ease-in-out infinite',

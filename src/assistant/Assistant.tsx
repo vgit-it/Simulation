@@ -286,7 +286,7 @@ export function Assistant() {
                     <>
                       <p
                         role="status"
-                        className="type-headline animate-rise whitespace-pre-line text-text"
+                        className="type-title animate-rise whitespace-pre-line text-text"
                       >
                         {latestReply?.text}
                       </p>

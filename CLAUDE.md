@@ -171,8 +171,11 @@ src/
                                #   Avatar, EmptyState) + motion (useMountTransition)
   theme/                       # design-system + theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, NavBar
-    Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
+    Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage); owns the shade
     NavBar.tsx                 # One UI 3-button nav (Recents inert · Home · Back); hold Home invokes the assistant
+    StatusBar.tsx              # sim-clock time + signal/battery; unlocked, it's the shade pull-down handle (+ count badge)
+    NotificationShade.tsx      # pull-down shade over home/app: notification list + Clear all
+    NotificationCard.tsx       # one notification card (shared by the lock screen + shade)
     screen.tsx                 # ScreenProvider/useScreenControl: shares the lifted screen with the in-phone assistant
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
@@ -181,7 +184,7 @@ src/
     messages/                  # inbox of threads (MessagesApp) + Thread view w/ reply composer
     contacts/                  # derived contacts graph; tap to select a person (ContactsApp)
     reminders/                 # to-dos from ReminderCreated events + direct add (RemindersApp)
-    assistant/                 # conversation threads with the assistant; tap to resume one (AssistantApp)
+    assistant/                 # conversation list (AssistantApp) + in-app ChatThread read view; tap to open, Continue to resume
     settings/                  # Proto Settings: clock/POV/brain/reset/export + the scenario player (SettingsApp)
   App.tsx                      # providers + Stage (owns screen state + ScenarioPlayerProvider, mounts Phone)
   main.tsx                     # React entry
@@ -338,6 +341,20 @@ ping-pong forever.
 message inbound + newer than your last read). The Messages home-icon badge and
 inbox dots read these — an autopilot reply while you're elsewhere badges the
 icon, exactly like a real phone.
+
+**Notifications are derived (no delivery, no authoring):** `notificationsFor(state,
+personId)` (`src/state/selectors.ts`) folds the embodied person's log into a
+newest-first list of `Notification`s — inbound messages (one per UNREAD thread,
+so opening it via `ThreadRead` retires the notification exactly as it clears the
+badge — one read model, two surfaces) and reminders they created. The shape is
+neutral (ids only); the UI (`NotificationCard`) resolves a sender's avatar/name,
+keeping the selector `world`-free. They surface on the **lock screen** (a card
+stack; tapping unlocks straight into the app) and a **pull-down shade** (tap the
+status bar unlocked — `Phone` owns the `shadeOpen` state, `StatusBar` is the
+handle). **Clear all** dispatches `NotificationsCleared { person, at }` — a
+watermark (like `ThreadRead`): everything at/older than `at` is dismissed, while
+anything newer resurfaces. To add a source, push another item in
+`notificationsFor` from its events — no new plumbing.
 
 **How runtime plans work (no authoring needed):** a plan is a scenario the
 brain writes on the fly. `brain.plan(ctx, request)`
@@ -764,10 +781,10 @@ app** listing them (installed on all six phones).
   `chatSessionsFor` groups a person's turns into threads (title = first user
   message, preview = last turn, newest activity first — sim-time ties break
   by log order, since the clock may not move between asks). Tapping a thread
-  **resumes** it: the sheet opens bound to that session, its history renders,
-  and `respond()` receives it (the mock's greeting proves the seam: fresh
-  threads greet, resumed ones don't). It declares no actions — chat, plans,
-  and proposals all still live in the persistent assistant surface.
+  **opens it in-app** (see the notifications section below for the current
+  behavior): a `ChatThread` read view renders the full history, and `respond()`
+  receives it. It declares no actions — chat, plans, and proposals all still
+  live in the persistent assistant surface.
 - The sheet's chat is session-scoped end-to-end: displayed turns, the history
   fed to the brain, and the dry-run `buildLLMRequest` messages all derive from
   `chatHistoryFor(state, person, session)`.
@@ -899,6 +916,44 @@ Deferred: Gemini **function-calling** mode (native tool calls → PlanSteps —
 JSON structured output is the first cut); the eval-fixture harness (roadmap ⑤:
 (state, selection, request) → expected plan, mock as oracle); any server-side
 key/proxy (only needed for a public multi-user deploy).
+
+### Notifications + in-app assistant threads ✅ (current, pre-M5)
+
+The phone grew a real notification surface, and assistant conversations became
+readable in place — both on the existing event-log/selector substrate, no new
+plumbing.
+
+- **Notifications** are a fold over the log, not delivered messages:
+  `notificationsFor(state, personId)` (`src/state/selectors.ts`) derives a
+  newest-first `Notification[]` from **inbound messages** (one per UNREAD thread
+  — reusing `unreadThreadKeys`, so opening a thread retires its notification
+  exactly as it clears the badge) and **reminders**. The shape is neutral (ids
+  only); `NotificationCard` (`src/phone`) resolves a sender's avatar/name so the
+  selector stays `world`-free. Two surfaces render the same cards: the **lock
+  screen** (a stack under the clock — tapping a card unlocks straight into its
+  app via `onOpenApp`) and a **pull-down shade** (`NotificationShade`) dropping
+  from the top over home/app. `StatusBar` is the shade handle when unlocked
+  (with a count-badge pill by the clock) and static when locked; `Phone` owns
+  the `shadeOpen` state and the shade layer (z-20, below the lock layer). **Clear
+  all** dispatches the one new event, `NotificationsCleared { person, at }`,
+  reduced to a `notificationsClearedAt` watermark (mirroring `ThreadRead`):
+  everything at/older than `at` is dismissed, anything newer resurfaces. New
+  keyframes `shade-in`/`shade-out` (`tailwind.config.ts`) + `EXIT.shade` drive
+  the drop/retract.
+- **In-app assistant threads**: tapping a conversation in the Assistant app now
+  opens an in-app `ChatThread` (`src/apps/assistant/ChatThread.tsx`) — the full
+  user/assistant back-and-forth as chat bubbles (the Messages `Thread` pattern
+  over `chatHistoryFor` instead of the message log), with **Continue
+  conversation** handing off to the invoked surface (bound to that session)
+  where the live chat machinery lives. Previously a tap jumped straight to the
+  invoked surface's latest-reply card.
+- **Smaller invoked reply**: the invoked assistant's response card dropped from
+  `type-headline` to `type-title` — still forward-facing, less shouty.
+
+Deferred: per-notification dismissal (only Clear-all today), notification
+sources beyond messages/reminders (plan completions, e.g.), a real
+swipe/drag gesture for the shade (tap-to-open today), a composer inside the
+in-app ChatThread (Continue hands off instead).
 
 ### M6 — More device shells & richer visuals
 

@@ -51,6 +51,17 @@ export interface ThreadReadEvent {
   thread: string;
 }
 
+/**
+ * A person cleared their notification shade ("Clear all"). Like ThreadRead,
+ * it records a watermark — every notification at or before `at` is dismissed;
+ * anything newer (a later message, a reminder created after) surfaces again.
+ */
+export interface NotificationsClearedEvent {
+  type: 'NotificationsCleared';
+  at: number;
+  person: string;
+}
+
 /** One turn of a person's conversation with their assistant. */
 export interface ChatMessageEvent {
   type: 'ChatMessage';
@@ -135,6 +146,7 @@ export type SimEvent =
   | AppOpenedEvent
   | ClockSetEvent
   | ThreadReadEvent
+  | NotificationsClearedEvent
   | ChatMessageEvent
   | ReminderCreatedEvent
   | PlanProposedEvent

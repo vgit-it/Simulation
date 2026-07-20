@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAssistantControl } from '../../assistant/control';
 import {
   chatSessionsFor,
@@ -9,6 +9,7 @@ import {
 import { AppHeader, EmptyState, PillButton } from '../../ui';
 import { resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
+import { ChatThread } from './ChatThread';
 
 function timeLabel(at: number): string {
   return new Date(at).toLocaleString('en-US', {
@@ -22,13 +23,12 @@ function timeLabel(at: number): string {
 /**
  * The Assistant app: the owner's conversation history with their assistant,
  * one thread per request (every fresh invocation minted a new session id).
- * Tapping a thread RESUMES it — the invoked surface opens bound to that
- * conversation (showing its latest reply; the full history feeds the brain);
- * "New" (like invoking the assistant from anywhere else) starts a fresh one.
- * It also carries the assistant's recent-activity record (sent items, plan
- * runs) — the invoked surface faces forward, this app is the memory. The app
- * owns no chat machinery of its own: it just points the shared
- * AssistantControl at a thread.
+ * Tapping a thread OPENS it in-app — a ChatThread view showing the full
+ * back-and-forth as chat bubbles; from there **Continue** resumes it in the
+ * invoked surface (the live chat machinery lives there). "New" (like invoking
+ * the assistant from anywhere else) starts a fresh conversation. The app also
+ * carries the assistant's recent-activity record (sent items, plan runs) — the
+ * invoked surface faces forward, this app is the memory.
  */
 export function AssistantApp({ owner }: AppScreenProps) {
   const { state } = useStore();
@@ -39,6 +39,21 @@ export function AssistantApp({ owner }: AppScreenProps) {
   );
   const activity = messagesFrom(state, owner.id);
   const planRuns = plansFor(state, owner.id);
+
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openSession = openId
+    ? sessions.find((s) => s.id === openId)
+    : undefined;
+  if (openSession) {
+    return (
+      <ChatThread
+        sessionId={openSession.id}
+        title={openSession.title}
+        ownerId={owner.id}
+        onBack={() => setOpenId(null)}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full flex-col bg-bg">
@@ -59,7 +74,7 @@ export function AssistantApp({ owner }: AppScreenProps) {
             {sessions.map((s, i) => (
               <button
                 key={s.id}
-                onClick={() => control.open(s.id)}
+                onClick={() => setOpenId(s.id)}
                 className="flex animate-rise items-center gap-space-md rounded-card bg-surface p-space-md text-left ring-1 ring-text/5 transition duration-150 active:scale-[0.98]"
                 style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
               >
