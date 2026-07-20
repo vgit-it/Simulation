@@ -870,6 +870,19 @@ the JSON reply back into the existing `ChatReply`/`Plan` contract.
   malformed reply now degrades to one calm "couldn't complete that request"
   turn (`Assistant.onChatSubmit`'s catch); a well-formed plan routes to the
   `PlanSheet` preview as before.
+- **Model-downgrade fallback**: Gemini's flash line periodically returns
+  `503` ("this model is experiencing high demand"). `callGemini` now throws a
+  typed `GeminiHttpError` carrying the status, and `callGeminiWithFallback`
+  walks a `modelChain(primary)` — the configured model, then
+  `GEMINI_FALLBACK_MODELS` (`src/config.ts`, default
+  `['gemini-flash-lite-latest']`) — retrying on a *retryable* status (503
+  overloaded / 429 rate-limited / 500 transient) with the next, lighter model,
+  which has its own capacity. Non-retryable failures (bad key `400/401/403`,
+  blocked content, `MAX_TOKENS` truncation) fail fast — a downgrade wouldn't
+  help. The user's configured model is always tried first, so a working primary
+  is never bypassed; if every model is exhausted the last error surfaces
+  through the same friendly catch. `gemini-flash-lite-latest` is a
+  Google-maintained alias (same no-stale-snapshot rationale as the default).
 - **Bring-your-own key**: pasted into Settings ▸ Brain, stored in
   `localStorage` (`sim-gemini-api-key` / `sim-gemini-model`), read at call time
   (edits need no reload; only switching provider reloads). The key never leaves
