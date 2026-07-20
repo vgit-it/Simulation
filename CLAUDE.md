@@ -83,15 +83,20 @@ contacts, photos, etc.).
   state) and collapses under `prefers-reduced-motion`.
 - **Design system**: the OS look (type scale, spacing, shape) is authored
   content in `world/design/DESIGN.md` — [DESIGN.md format](https://github.com/google-labs-code/design.md)
-  (YAML tokens + prose philosophy), following Google Sans typography
-  principles. Tokens flow file → zod schema → CSS variables → utilities
-  (`.type-*` role classes in `src/index.css`; `space-*`/`ds-*`
-  spacing/radius keys in `tailwind.config.ts`). Editing the file restyles the
-  OS; per-person identity (colors) stays in `world/themes/*.md`.
+  (YAML tokens + prose philosophy), modeled on **Samsung One UI** (7/8): one
+  typeface with weight-driven hierarchy, big continuous corner radii
+  (26px cards, pill buttons), and reachability-first layout (tall large-title
+  headers, content in the bottom two-thirds). Tokens flow file → zod schema →
+  CSS variables → utilities (`.type-*` role classes in `src/index.css`;
+  `space-*`/`ds-*` spacing/radius keys in `tailwind.config.ts`). Editing the
+  file restyles the OS; per-person identity (colors) stays in
+  `world/themes/*.md` — all themes follow the One UI neutral system (gray
+  canvas/white cards in light; true black/#171717 cards in dark), differing
+  only in accent.
 - **Fonts** are self-hosted via `@fontsource-variable/*` (bundled at build
-  time — no runtime network, works offline): **Figtree** as the brand/display
-  face (an open stand-in for the proprietary Google Sans) and **Inter** as the
-  plain text face.
+  time — no runtime network, works offline): **Onest** as the single system
+  face (an open stand-in for the proprietary One UI Sans; One UI uses one
+  family everywhere, so `brand` and `plain` both resolve to it).
 - **zod** for content schemas, **js-yaml** for frontmatter + sidecars.
   - Note: we parse frontmatter with `js-yaml` directly (see
     `src/world/frontmatter.ts`) rather than `gray-matter`, which depends on

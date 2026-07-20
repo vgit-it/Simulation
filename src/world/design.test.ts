@@ -19,7 +19,7 @@ describe('design system', () => {
     // One spot check per token group the Tailwind/CSS utilities compile against.
     expect(vars['--type-headline-size']).toMatch(/px$/);
     expect(vars['--type-caption-tracking']).toMatch(/em$/);
-    expect(vars['--font-brand']).toContain('Figtree');
+    expect(vars['--font-brand']).toContain('Onest');
     expect(vars['--space-lg']).toBe('16px');
     expect(vars['--rounded-full']).toBe('999px');
   });

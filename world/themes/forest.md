@@ -2,14 +2,15 @@
 id: forest
 name: Forest
 colors:
-  bg: '#08140e'
-  surface: '#10251a'
-  text: '#dcfce7'
-  muted: '#6f9e83'
-  accent: '#22c55e'
+  bg: '#000000'
+  surface: '#171717'
+  text: '#f2f2f2'
+  muted: '#8f8f8f'
+  accent: '#1fc06a'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A deep green, dark theme. Edit these tokens to restyle any device that uses the "forest" theme.
+One UI dark with a green accent: true-black canvas, #171717 cards. Edit these
+tokens to restyle any device that uses the "forest" theme.

@@ -2,14 +2,15 @@
 id: sunrise
 name: Sunrise
 colors:
-  bg: '#fff7ed'
-  surface: '#ffedd5'
-  text: '#431407'
-  muted: '#9a6b43'
-  accent: '#ea580c'
+  bg: '#f6f6f6'
+  surface: '#ffffff'
+  text: '#1c1c1c'
+  muted: '#8c8c8c'
+  accent: '#e8641b'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A warm, light theme. Edit these tokens to restyle any device that uses the "sunrise" theme.
+One UI light with a warm orange accent: soft gray canvas, white cards. Edit
+these tokens to restyle any device that uses the "sunrise" theme.

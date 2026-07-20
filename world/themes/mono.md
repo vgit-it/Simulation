@@ -2,14 +2,15 @@
 id: mono
 name: Mono
 colors:
-  bg: '#fafafa'
-  surface: '#f0f0f0'
-  text: '#18181b'
-  muted: '#71717a'
-  accent: '#3f3f46'
+  bg: '#f6f6f6'
+  surface: '#ffffff'
+  text: '#1c1c1c'
+  muted: '#8c8c8c'
+  accent: '#50555e'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A neutral, light theme. Edit these tokens to restyle any device that uses the "mono" theme.
+One UI light, all-neutral: soft gray canvas, white cards, graphite accent.
+Edit these tokens to restyle any device that uses the "mono" theme.

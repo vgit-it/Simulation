@@ -16,6 +16,11 @@ interface HomeScreenProps {
   onLock: () => void;
 }
 
+/**
+ * One UI-style home: a widget card up top (the greeting lives there, like the
+ * stock weather/clock widget), a 4-column grid of squircle app icons on the
+ * wallpaper, and the gesture bar.
+ */
 export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps) {
   const now = useNow();
   const { state } = useStore();
@@ -23,9 +28,8 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
   // second badged app appears, lift this into a per-app badge registry.
   const unread = unreadCountFor(state, owner.id);
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-surface to-bg px-space-xl pb-space-2xl pt-space-lg">
-      {/* The greeting is a brand moment — headline face, room to breathe. */}
-      <div className="mb-space-2xl flex animate-rise items-end justify-between">
+    <div className="flex h-full flex-col overflow-y-auto bg-bg bg-gradient-to-b from-accent/15 via-bg to-bg px-space-lg pb-space-2xl pt-space-lg">
+      <div className="mb-space-2xl flex animate-rise items-center justify-between rounded-ds-lg bg-surface/80 p-space-lg backdrop-blur-sm">
         <div>
           <p className="type-caption text-muted">{greeting(now.getHours())}</p>
           <p className="type-headline mt-0.5">{owner.name.split(' ')[0]}</p>
@@ -33,7 +37,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
         <PillButton onClick={onLock}>Lock</PillButton>
       </div>
 
-      <div className="grid grid-cols-4 gap-x-space-lg gap-y-space-xl">
+      <div className="grid grid-cols-4 gap-x-space-md gap-y-space-xl px-space-sm">
         {device.apps.map((appId, i) => {
           const app = getApp(appId);
           const badge = appId === 'messages' ? unread : 0;
@@ -44,7 +48,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
               className="flex animate-rise flex-col items-center gap-1.5"
               style={{ animationDelay: `${i * 30}ms` }}
             >
-              <span className="relative flex h-14 w-14 items-center justify-center rounded-card bg-text/10 text-2xl shadow-inner ring-1 ring-text/5 transition-transform duration-150 ease-out-soft active:scale-90">
+              <span className="relative flex h-14 w-14 items-center justify-center rounded-ds-md bg-surface text-2xl shadow-sm transition-transform duration-150 ease-out-soft active:scale-90">
                 {app.icon}
                 {badge > 0 && (
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pop items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white ring-2 ring-bg">

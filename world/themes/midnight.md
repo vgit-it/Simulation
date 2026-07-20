@@ -2,15 +2,16 @@
 id: midnight
 name: Midnight
 colors:
-  bg: '#0b0f1a'
-  surface: '#151b2c'
-  text: '#e8ecf5'
-  muted: '#8b93a7'
-  accent: '#5b8cff'
+  bg: '#000000'
+  surface: '#171717'
+  text: '#f2f2f2'
+  muted: '#8f8f8f'
+  accent: '#3e91ff'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A dark, calm default theme. Edit these tokens to restyle any device that uses
-the "midnight" theme — no code changes required.
+One UI dark: true-black canvas, #171717 cards, One UI blue accent. Edit these
+tokens to restyle any device that uses the "midnight" theme — no code changes
+required.

@@ -10,7 +10,7 @@ interface PillButtonProps {
 }
 
 const variants = {
-  muted: 'bg-text/10 px-space-lg py-1.5 text-muted',
+  muted: 'bg-text/10 px-space-lg py-1.5 text-text/80',
   accent: 'bg-accent px-space-xl py-2 text-white disabled:opacity-40',
 };
 

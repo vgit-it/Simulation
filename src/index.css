@@ -1,5 +1,4 @@
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/onest';
 
 @tailwind base;
 @tailwind components;
@@ -64,14 +63,14 @@
 /* Fallback theme tokens. The active device theme overrides these at runtime
    via src/theme (applyTheme). See world/themes/*.md for the source values. */
 :root {
-  --sim-bg: #0b0f1a;
-  --sim-surface: #151b2c;
-  --sim-text: #e8ecf5;
-  --sim-muted: #8b93a7;
-  --sim-accent: #5b8cff;
-  --sim-radius-screen: 44px;
-  --sim-radius-card: 16px;
-  --sim-font: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --sim-bg: #000000;
+  --sim-surface: #171717;
+  --sim-text: #f2f2f2;
+  --sim-muted: #8f8f8f;
+  --sim-accent: #3e91ff;
+  --sim-radius-screen: 30px;
+  --sim-radius-card: 26px;
+  --sim-font: 'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif;
 }
 
 html,
