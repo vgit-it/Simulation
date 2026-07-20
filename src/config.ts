@@ -30,5 +30,12 @@ export const HERO_DEVICE_ID = 'ava-phone';
 export type IntelligenceProviderName = 'mock' | 'llm-dry-run' | 'gemini';
 export const INTELLIGENCE_PROVIDER: IntelligenceProviderName = 'mock';
 
-/** Default Gemini model for the real provider; editable in Settings ▸ Brain. */
-export const GEMINI_MODEL_DEFAULT = 'gemini-2.5-flash';
+/**
+ * Default Gemini model for the real provider; editable in Settings ▸ Brain.
+ * `gemini-flash-latest` is a Google-maintained alias (currently resolving to
+ * gemini-3.5-flash) that Google hot-swaps to the current recommended release,
+ * rather than a pinned dated snapshot — pinning a snapshot here means this
+ * default silently breaks every time Google retires it (as gemini-2.5-flash
+ * did before its own announced shutdown date).
+ */
+export const GEMINI_MODEL_DEFAULT = 'gemini-flash-latest';

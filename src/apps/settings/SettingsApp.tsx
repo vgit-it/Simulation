@@ -187,7 +187,7 @@ export function SettingsApp(_props: AppScreenProps) {
                   setModel(e.target.value);
                   setGeminiModel(e.target.value);
                 }}
-                placeholder="gemini-2.5-flash"
+                placeholder="gemini-flash-latest"
                 autoComplete="off"
                 className="type-body-sm min-w-0 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
               />
