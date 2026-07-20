@@ -2,14 +2,15 @@
 id: blossom
 name: Blossom
 colors:
-  bg: '#fdf2f8'
-  surface: '#fce7f3'
-  text: '#500724'
-  muted: '#a4557f'
-  accent: '#db2777'
+  bg: '#f6f6f6'
+  surface: '#ffffff'
+  text: '#1c1c1c'
+  muted: '#8c8c8c'
+  accent: '#d94a86'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A soft pink, light theme. Edit these tokens to restyle any device that uses the "blossom" theme.
+One UI light with a pink accent: soft gray canvas, white cards. Edit these
+tokens to restyle any device that uses the "blossom" theme.

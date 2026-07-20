@@ -2,14 +2,15 @@
 id: dusk
 name: Dusk
 colors:
-  bg: '#140b1f'
-  surface: '#21132f'
-  text: '#f3e8ff'
-  muted: '#a17bbf'
-  accent: '#a855f7'
+  bg: '#000000'
+  surface: '#171717'
+  text: '#f2f2f2'
+  muted: '#8f8f8f'
+  accent: '#9e6bff'
 radii:
-  screen: 44
-  card: 16
-font: "'Inter Variable', 'Inter', system-ui, sans-serif"
+  screen: 30
+  card: 26
+font: "'Onest Variable', 'Onest', 'One UI Sans', system-ui, sans-serif"
 ---
-A violet, dark theme. Edit these tokens to restyle any device that uses the "dusk" theme.
+One UI dark with a violet accent: true-black canvas, #171717 cards. Edit these
+tokens to restyle any device that uses the "dusk" theme.

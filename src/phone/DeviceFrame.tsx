@@ -24,7 +24,7 @@ export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) 
   return (
     <div
       style={themeVars}
-      className="relative h-[844px] max-h-[94vh] w-[390px] max-w-[94vw] rounded-[54px] bg-black p-3 shadow-2xl ring-1 ring-white/10"
+      className="relative h-[844px] max-h-[94vh] w-[390px] max-w-[94vw] rounded-[38px] bg-black p-2 shadow-2xl ring-1 ring-white/10"
     >
       {/* transition-colors lets themes cross-blend when the POV switches.
           Capture-phase tap counting feeds the research trace: every physical
@@ -33,8 +33,8 @@ export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) 
         onPointerDownCapture={countTap}
         className="relative flex h-full w-full flex-col overflow-hidden rounded-screen bg-bg font-sim text-text transition-colors duration-500"
       >
-        {/* notch */}
-        <div className="absolute left-1/2 top-0 z-20 h-7 w-40 -translate-x-1/2 rounded-b-2xl bg-black" />
+        {/* Galaxy-style centered punch-hole camera */}
+        <div className="absolute left-1/2 top-3 z-20 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-white/5" />
         <StatusBar />
         <OverlayPortalContext.Provider value={portalEl}>
           {/* Screens are layered (home base, app, lock) and each manages its
