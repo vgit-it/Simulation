@@ -151,28 +151,28 @@ describe('MockIntelligence', () => {
 describe('MockIntelligence.respond', () => {
   const ctx = assembleContext(session, freshState(), {});
 
-  it('answers a share-keyword message with the same suggestion suggest() would make', () => {
+  it('answers a share-keyword message with the same suggestion suggest() would make', async () => {
     const [top] = brain.suggest(ctx).filter((s) => s.intent === 'share-photos');
-    const reply = brain.respond(ctx, [], 'What should I share this week?');
+    const reply = await brain.respond(ctx, [], 'What should I share this week?');
     expect(reply.text).toContain(top.title);
     expect(reply.text).toContain('Want me to draft it?');
   });
 
-  it('answers a contact-name message with the correct shared-photo count', () => {
-    const reply = brain.respond(ctx, [], 'Tell me about Sam');
+  it('answers a contact-name message with the correct shared-photo count', async () => {
+    const reply = await brain.respond(ctx, [], 'Tell me about Sam');
     const count = sharedPhotoCount('ava-chen', 'sam-ruiz');
     expect(reply.text).toContain(`${count} photo`);
     expect(reply.text).toContain('Sam Ruiz');
   });
 
-  it('falls back to a scripted reply for unrelated messages', () => {
-    const reply = brain.respond(ctx, [], 'What time is it?');
+  it('falls back to a scripted reply for unrelated messages', async () => {
+    const reply = await brain.respond(ctx, [], 'What time is it?');
     expect(reply.text).toContain('scripted assistant');
   });
 
-  it('greets only on the first turn', () => {
-    const first = brain.respond(ctx, [], 'hello');
-    const second = brain.respond(
+  it('greets only on the first turn', async () => {
+    const first = await brain.respond(ctx, [], 'hello');
+    const second = await brain.respond(
       ctx,
       [
         { role: 'user', text: 'hi' },

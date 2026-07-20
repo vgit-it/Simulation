@@ -346,7 +346,11 @@ class MockPersonIntelligence implements PersonIntelligence {
     };
   }
 
-  respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply {
+  async respond(
+    ctx: ContextBundle,
+    history: ChatTurn[],
+    message: string,
+  ): Promise<ChatReply> {
     const lower = message.toLowerCase();
     const greeting = history.length === 0 ? 'Hi! ' : '';
 

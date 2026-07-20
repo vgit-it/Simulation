@@ -20,8 +20,15 @@ export const HERO_DEVICE_ID = 'ava-phone';
  *  - 'mock': fully deterministic, no tokens (the default — always works offline).
  *  - 'llm-dry-run': chat assembles the EXACT Anthropic API request (system
  *    prompt + capability tools + messages) and shows it instead of calling —
- *    no key, no network. The M5 real provider will reuse the same builder.
+ *    no key, no network. Reuses the same builder the real provider sends.
+ *  - 'gemini': the REAL LLM brain — sends that assembled request (translated
+ *    to Gemini's REST shape) to the Google Gemini API with a bring-your-own
+ *    key stored in the browser, and parses the JSON reply. Opt-in; the mock
+ *    stays the offline default.
  * The Settings app's Brain toggle overrides this per-browser via localStorage.
  */
-export type IntelligenceProviderName = 'mock' | 'llm-dry-run';
+export type IntelligenceProviderName = 'mock' | 'llm-dry-run' | 'gemini';
 export const INTELLIGENCE_PROVIDER: IntelligenceProviderName = 'mock';
+
+/** Default Gemini model for the real provider; editable in Settings ▸ Brain. */
+export const GEMINI_MODEL_DEFAULT = 'gemini-2.5-flash';

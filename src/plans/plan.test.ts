@@ -118,10 +118,12 @@ describe('MockIntelligence.plan', () => {
     expect(plan!.steps.some((s) => s.intent === 'create-reminder')).toBe(false);
   });
 
-  it('respond() surfaces a plan for an imperative request but not an advisory one', () => {
+  it('respond() surfaces a plan for an imperative request but not an advisory one', async () => {
     const ctx = assembleContext(session, state);
-    expect(brain.respond(ctx, [], "share this week's photos").plan).toBeDefined();
-    expect(brain.respond(ctx, [], 'What should I share this week?').plan).toBeUndefined();
+    expect((await brain.respond(ctx, [], "share this week's photos")).plan).toBeDefined();
+    expect(
+      (await brain.respond(ctx, [], 'What should I share this week?')).plan,
+    ).toBeUndefined();
   });
 });
 

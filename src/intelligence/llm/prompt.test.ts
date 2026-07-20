@@ -77,9 +77,9 @@ describe('LLMIntelligence (dry run)', () => {
   const provider = new LLMIntelligence(new MockIntelligence());
   const brain = provider.for('ava-chen');
 
-  it('respond() returns the payload instead of completing the task', () => {
+  it('respond() returns the payload instead of completing the task', async () => {
     const ctx = assembleContext(session, freshState());
-    const reply = brain.respond(ctx, [], 'share this week and remind me to print one');
+    const reply = await brain.respond(ctx, [], 'share this week and remind me to print one');
     expect(reply.text).toContain('dry run');
     expect(reply.plan).toBeUndefined(); // it did NOT do the task
     expect(reply.llmRequest).toBeDefined();

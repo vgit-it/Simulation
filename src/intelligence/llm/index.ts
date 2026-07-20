@@ -51,7 +51,11 @@ class DryRunPersonIntelligence implements PersonIntelligence {
     return this.delegate.plan(ctx, request);
   }
 
-  respond(ctx: ContextBundle, history: ChatTurn[], message: string): ChatReply {
+  async respond(
+    ctx: ContextBundle,
+    history: ChatTurn[],
+    message: string,
+  ): Promise<ChatReply> {
     const llmRequest = buildLLMRequest(ctx, history, message);
     const toolNames = llmRequest.tools.map((t) => t.name).join(', ');
     return {
