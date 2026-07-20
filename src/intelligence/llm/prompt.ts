@@ -27,6 +27,15 @@ export interface LLMRequest {
 
 const MODEL = 'claude-sonnet-5';
 
+/**
+ * The output-token ceiling for a reply. Sized with headroom because thinking
+ * models (e.g. Gemini's flash line, the current real provider) bill their
+ * internal reasoning tokens AGAINST this budget — a small ceiling truncates the
+ * JSON answer mid-object, which then fails to parse. Anthropic bills thinking
+ * separately, so a generous ceiling is harmless there.
+ */
+const MAX_OUTPUT_TOKENS = 8192;
+
 function fmtTime(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 16);
 }
@@ -165,7 +174,7 @@ export function buildLLMRequest(
 ): LLMRequest {
   return {
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: MAX_OUTPUT_TOKENS,
     system: buildSystemPrompt(ctx),
     tools: buildTools(ctx),
     messages: buildMessages(history, message),

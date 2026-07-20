@@ -857,10 +857,19 @@ the JSON reply back into the existing `ChatReply`/`Plan` contract.
 - **`gemini.ts`** is pure where it can be: `toGeminiRequest` (folds the tool
   catalog into `systemInstruction`, remaps `assistant→model`, sets
   `responseMimeType: application/json`), `callGemini` (direct browser `fetch`,
-  readable errors), and `parseChatReply` (zod-validated, synthesizes missing
-  plan/step ids, **drops steps whose `intent` isn't a real capability**,
-  degrades malformed output to plain text). Non-decider methods delegate to the
-  mock.
+  readable errors, **rejects a `finishReason: MAX_TOKENS` candidate** rather than
+  passing a truncated fragment downstream), and `parseChatReply` (zod-validated,
+  synthesizes missing plan/step ids, **drops steps whose `intent` isn't a real
+  capability**, degrades malformed output to a friendly notice and **never
+  renders raw JSON**). Non-decider methods delegate to the mock.
+- **Thinking-model token budget**: the reply ceiling is `MAX_OUTPUT_TOKENS`
+  (8192, `src/intelligence/llm/prompt.ts`) on the neutral `LLMRequest`, sized
+  with headroom because Gemini's flash line bills its internal reasoning tokens
+  *against* `maxOutputTokens` — the old 1024 truncated plans mid-object, which
+  parsed to nothing and dumped the raw fragment into the chat. A cut-off or
+  malformed reply now degrades to one calm "couldn't complete that request"
+  turn (`Assistant.onChatSubmit`'s catch); a well-formed plan routes to the
+  `PlanSheet` preview as before.
 - **Bring-your-own key**: pasted into Settings ▸ Brain, stored in
   `localStorage` (`sim-gemini-api-key` / `sim-gemini-model`), read at call time
   (edits need no reload; only switching provider reloads). The key never leaves
