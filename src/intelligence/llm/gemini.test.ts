@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assembleContext } from '../../context';
 import { freshState } from '../../state';
 import { buildLLMRequest } from './prompt';
-import { parseChatReply, toGeminiRequest } from './gemini';
+import { callGemini, parseChatReply, toGeminiRequest } from './gemini';
 
 const session = { personId: 'ava-chen', deviceId: 'ava-phone' };
 const req = buildLLMRequest(assembleContext(session, freshState()), [], 'hello');
@@ -39,6 +39,13 @@ describe('toGeminiRequest (neutral LLMRequest -> Gemini REST body)', () => {
   it('maps max_tokens and requests structured JSON output', () => {
     expect(body.generationConfig.maxOutputTokens).toBe(req.max_tokens);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
+  });
+
+  it('carries a token budget with headroom for thinking + JSON', () => {
+    // Thinking models bill reasoning against maxOutputTokens; a tiny ceiling
+    // truncates the answer. The default must leave real room (regression: was
+    // 1024, which cut plans off mid-object).
+    expect(body.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(4096);
   });
 });
 
@@ -96,10 +103,32 @@ describe('parseChatReply (Gemini text -> ChatReply)', () => {
     expect(reply.plan!.steps[0].intent).toBe('share-photos');
   });
 
-  it('degrades malformed output to a plain-text reply instead of throwing', () => {
+  it('passes genuine prose through (model ignored JSON mode)', () => {
     const reply = parseChatReply('not json at all');
     expect(reply.text).toBe('not json at all');
     expect(reply.plan).toBeUndefined();
+  });
+
+  it('never surfaces raw JSON when the payload is truncated mid-object', () => {
+    // The exact shape the thinking-model budget overrun produced: valid JSON
+    // that stops partway. It must NOT reach the user as a blob.
+    const truncated = `{
+  "text": "I'll help you share the selected photos with Leo Park.",
+  "plan": {
+    "goal": "Share selected photos with Leo Park",
+    "steps": [
+      {
+        "id": "share-with-leo",
+        "app": "photos",
+        "intent": "share-photos",
+        "ids": [
+          "img-003",
+          "img-001"
+        ],`;
+    const reply = parseChatReply(truncated);
+    expect(reply.plan).toBeUndefined();
+    expect(reply.text).not.toContain('{');
+    expect(reply.text).not.toContain('share-photos');
   });
 
   it('treats a plan with no runnable steps left as no plan', () => {
@@ -114,5 +143,46 @@ describe('parseChatReply (Gemini text -> ChatReply)', () => {
     );
     expect(reply.plan).toBeUndefined();
     expect(reply.text).toBe('hmm');
+  });
+});
+
+describe('callGemini (network boundary)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function mockFetch(body: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => body }) as Response),
+    );
+  }
+
+  it('throws a raise-the-budget error when the candidate finished MAX_TOKENS', async () => {
+    // A truncated candidate: partial text present, but finishReason says it was
+    // cut off. We must reject it (→ friendly failure) not pass the fragment on.
+    mockFetch({
+      candidates: [
+        {
+          finishReason: 'MAX_TOKENS',
+          content: { parts: [{ text: '{"text":"I' }] },
+        },
+      ],
+    });
+    await expect(
+      callGemini(toGeminiRequest(req), 'key', 'gemini-flash-latest'),
+    ).rejects.toThrow(/cut off|token budget/i);
+  });
+
+  it('returns the model text on a normal STOP finish', async () => {
+    mockFetch({
+      candidates: [
+        { finishReason: 'STOP', content: { parts: [{ text: '{"text":"hi"}' }] } },
+      ],
+    });
+    const text = await callGemini(
+      toGeminiRequest(req),
+      'key',
+      'gemini-flash-latest',
+    );
+    expect(text).toBe('{"text":"hi"}');
   });
 });

@@ -98,10 +98,22 @@ export async function callGemini(
     throw new Error(`Gemini ${res.status}${detail}`);
   }
   const data = await res.json();
-  const text: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidate = data?.candidates?.[0];
+  const finish: string | undefined = candidate?.finishReason;
+  const text: string | undefined = candidate?.content?.parts?.[0]?.text;
+  // Thinking models bill reasoning tokens against maxOutputTokens; when the
+  // budget runs out mid-answer the candidate finishes MAX_TOKENS with partial
+  // (or no) JSON. Surface that as a clear error instead of handing a truncated
+  // fragment to the parser — a raise-the-budget message, not a broken blob.
+  if (finish === 'MAX_TOKENS') {
+    throw new Error('response was cut off — raise the model token budget');
+  }
   if (typeof text !== 'string' || !text.trim()) {
-    throw new Error('Gemini returned no text (blocked or empty candidate)');
+    throw new Error(
+      finish
+        ? `Gemini returned no text (finishReason: ${finish})`
+        : 'Gemini returned no text (blocked or empty candidate)',
+    );
   }
   return text;
 }
@@ -131,22 +143,38 @@ function stripFence(text: string): string {
   return (fenced ? fenced[1] : text).trim();
 }
 
+const PARSE_FAILURE_NOTICE =
+  "I couldn't read that response — mind asking again?";
+
+/**
+ * Degrade a failed parse to a ChatReply WITHOUT ever surfacing raw model
+ * output. If the payload looks like JSON (the model tried the contract but the
+ * output was malformed or truncated), show a friendly notice — never the blob.
+ * Only genuine prose (the model ignored JSON mode and just wrote a sentence) is
+ * passed through, since that's already human-readable.
+ */
+function degrade(text: string): ChatReply {
+  const body = stripFence(text);
+  const looksLikeJson = /^[[{]/.test(body);
+  return { text: looksLikeJson ? PARSE_FAILURE_NOTICE : body };
+}
+
 /**
  * Parse the model's text into a `ChatReply`. Validates against the ChatReply
  * contract, synthesizes any missing plan/step ids, and drops steps whose
  * `intent` isn't a real capability (the model can hallucinate tool names).
- * Malformed output degrades to a plain-text reply rather than throwing — a
- * bad generation should never crash the chat.
+ * Malformed output degrades to a friendly notice rather than throwing (a bad
+ * generation should never crash the chat) and never renders raw JSON.
  */
 export function parseChatReply(text: string): ChatReply {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripFence(text));
   } catch {
-    return { text: text.trim() };
+    return degrade(text);
   }
   const result = replySchema.safeParse(parsed);
-  if (!result.success) return { text: text.trim() };
+  if (!result.success) return degrade(text);
 
   const { text: replyText, plan } = result.data;
   if (!plan) return { text: replyText };

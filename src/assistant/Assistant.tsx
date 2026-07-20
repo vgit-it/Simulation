@@ -149,8 +149,11 @@ export function Assistant() {
         beat,
       ]);
     } catch (err) {
+      // One friendly path for every failure: unreachable network, a cut-off
+      // (truncated) response, a malformed reply. Never a stack trace or a raw
+      // model blob — the reason rides along, but the framing stays calm.
       reply = {
-        text: `Sorry — I couldn't reach the model. ${
+        text: `Sorry — I couldn't complete that request. ${
           err instanceof Error ? err.message : String(err)
         }`,
       };
