@@ -18,7 +18,7 @@ export type {
 } from './types';
 export type { LLMRequest, LLMTool } from './llm/prompt';
 
-/** localStorage key for the per-browser provider override (DevBar toggle). */
+/** localStorage key for the per-browser provider override (Settings Brain toggle). */
 const PROVIDER_KEY = 'sim-intelligence-provider';
 
 /** The active provider name: localStorage override first, then config. */

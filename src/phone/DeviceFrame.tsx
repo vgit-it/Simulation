@@ -28,7 +28,9 @@ export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) 
     >
       {/* transition-colors lets themes cross-blend when the POV switches.
           Capture-phase tap counting feeds the research trace: every physical
-          interaction with the screen counts, out-of-phone chrome doesn't. */}
+          interaction with the screen counts — including the Settings app's
+          proto controls, now that they live in-phone (analysts bracket that
+          activity via AppOpened settings events). */}
       <div
         onPointerDownCapture={countTap}
         className="relative flex h-full w-full flex-col overflow-hidden rounded-screen bg-bg font-sim text-text transition-colors duration-500"

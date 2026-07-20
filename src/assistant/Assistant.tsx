@@ -24,7 +24,8 @@ import {
 
 /**
  * The invoked assistant: an ambient bottom surface, not a full sheet. Invoking
- * (the FAB) raises a gradient glow with the top suggestion as a hint pill and
+ * (press-and-hold the nav bar's home button) raises a gradient glow with the
+ * top suggestion as a hint pill and
  * an auto-focused input; once a reply exists, a large themed card shows it.
  * Only the LATEST assistant response is ever visible — the running thread
  * lives in the event log and is readable in the Assistant app, but the
@@ -32,8 +33,9 @@ import {
  * shared runner (preview sheet -> phone walkthrough -> progress HUD).
  *
  * Conversations are threads: the surface is bound to the AssistantControl
- * session — the FAB mints a fresh one (empty conversation), the Assistant app
- * resumes an existing one — and every chat turn is stamped with its id.
+ * session — a held home button mints a fresh one (empty conversation), the
+ * Assistant app resumes an existing one — and every chat turn is stamped with
+ * its id.
  */
 export function Assistant() {
   const { session } = useSession();
@@ -85,7 +87,7 @@ export function Assistant() {
   const hint = suggestions[0] ?? null;
 
   // Chat history is event-log state, scoped to the OPEN conversation thread: a
-  // freshly minted session id matches no turns, so the FAB always starts a
+  // freshly minted session id matches no turns, so a fresh invoke starts a
   // clean conversation; resuming a thread from the Assistant app feeds its
   // history to the brain — but the surface only ever SHOWS the latest reply.
   const chatHistory = chatHistoryFor(
@@ -218,33 +220,6 @@ export function Assistant() {
 
   return (
     <>
-      {/* Entrance pop lives on the wrapper so its fill-mode can't pin the
-          button's transform, which the open/close scale toggle animates. */}
-      <span
-        className="absolute bottom-24 right-5 z-20 block animate-pop"
-        style={{ animationDelay: '350ms' }}
-      >
-        <button
-          onClick={() => control.open()}
-          aria-label="Open assistant"
-          className={`relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl text-white shadow-fab transition duration-200 ease-out-soft active:scale-90 ${
-            open || runner.active ? 'pointer-events-none scale-0 opacity-0' : 'scale-100 opacity-100'
-          }`}
-        >
-          {/* Beacon halo: the assistant has something for you. */}
-          {suggestions.length > 0 && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 animate-halo rounded-full border-2 border-accent"
-            />
-          )}
-          ✨
-          {suggestions.length > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 animate-pop rounded-full bg-white ring-[3px] ring-accent" />
-          )}
-        </button>
-      </span>
-
       {hud.mounted && (runner.active ?? lastRunRef.current) && (
         <PlanProgress
           active={(runner.active ?? lastRunRef.current)!}

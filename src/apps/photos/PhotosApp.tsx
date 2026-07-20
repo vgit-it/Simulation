@@ -15,7 +15,7 @@ import { PhotoDetail } from './PhotoDetail';
  * person's brain; the underlying data is the owner's committed gallery. Supports
  * a multi-select mode that shares many photos in one proposal via the pipeline.
  */
-export function PhotosApp({ owner, onClose }: AppScreenProps) {
+export function PhotosApp({ owner }: AppScreenProps) {
   const { session, setSelection } = useSession();
   const { state } = useStore();
   const now = useNow();
@@ -78,10 +78,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
           selecting ? (
             <PillButton onClick={exitSelect}>Cancel</PillButton>
           ) : (
-            <>
-              <PillButton onClick={() => setSelecting(true)}>Select</PillButton>
-              <PillButton onClick={onClose}>Home</PillButton>
-            </>
+            <PillButton onClick={() => setSelecting(true)}>Select</PillButton>
           )
         }
       />
@@ -142,7 +139,7 @@ export function PhotosApp({ owner, onClose }: AppScreenProps) {
 
       {actionBar.mounted && (
         <div
-          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-space-md border-t border-text/5 bg-surface/95 px-space-lg py-space-lg shadow-sheet backdrop-blur ${
+          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-space-md border-t border-text/5 bg-surface/95 px-space-lg pb-14 pt-space-lg shadow-sheet backdrop-blur ${
             actionBar.closing ? 'animate-slide-down' : 'animate-slide-up'
           }`}
         >

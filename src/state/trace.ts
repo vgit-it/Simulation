@@ -9,7 +9,9 @@ import type { RuntimeState } from './reducer';
  * event, aligned by order. Nothing in sim behavior ever reads the trace; it
  * exists only for the session export, where an analyst can compute
  * taps/seconds between any two log points (e.g. manual-path vs assistant-path
- * for the same task).
+ * for the same task). Note: the Settings app's proto controls live in-phone,
+ * so their taps count too — bracket that activity via AppOpened settings
+ * events when analyzing.
  *
  * This is the ONE module where wall-clock time is allowed: it measures the
  * human, not the sim (principle 5 governs sim behavior only).

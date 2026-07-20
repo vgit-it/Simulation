@@ -12,12 +12,13 @@ import { uid } from '../state';
 
 /**
  * Shared control over the assistant sheet, so it can be summoned from
- * anywhere on the phone — the floating FAB or a conversation row in the
- * Assistant app — the same way ScreenProvider shares the lifted screen.
+ * anywhere on the phone — holding the nav bar's home button or a conversation
+ * row in the Assistant app — the same way ScreenProvider shares the lifted
+ * screen.
  *
  * The one rule it encodes: invoking the assistant from anywhere OTHER than an
  * existing thread starts a FRESH conversation. `open()` with no argument
- * mints a new session id (the FAB path); `open(sessionId)` resumes that
+ * mints a new session id (the home-button path); `open(sessionId)` resumes that
  * thread (the Assistant app path). An unused fresh id leaves no trace — a
  * thread only exists once a ChatMessage event carries its id.
  */

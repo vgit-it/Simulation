@@ -37,7 +37,7 @@ export interface PlanRunner {
  * POV, opens each step's app (dispatching AppOpened), and for an action step
  * surfaces the step's Proposal for approval — pausing until the user commits or
  * cancels. Navigate/gather steps auto-advance after a beat so the user can watch
- * the context the next step acts on. It reuses the exact levers a human/DevBar/
+ * the context the next step acts on. It reuses the exact levers a human/Settings/
  * scenario uses (session POV + the lifted screen), so nothing here is a parallel
  * effect path.
  *

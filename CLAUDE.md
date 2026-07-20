@@ -119,7 +119,7 @@ npm run typecheck  # types only
 
 ```
 world/                         # CONTENT — authored, no code
-  apps/<app>.md                # app definitions: photos, messages, contacts, reminders, assistant
+  apps/<app>.md                # app definitions: photos, messages, contacts, reminders, assistant, settings
   people/<person>/             # six residents (ava, sam, maya, leo, nadia, theo)
     profile.md                 # id, name, avatar, traits, behaviors
     contacts.md                # (optional; contacts are now derived — see below)
@@ -130,7 +130,7 @@ world/                         # CONTENT — authored, no code
       documents/               # (reserved)
   design/DESIGN.md             # the OS design language: type scale, spacing, shape + philosophy
   themes/<theme>.md            # per-person visual identity tokens; one per resident
-  scenarios/<scenario>.md      # scripted step sequences (clock/focus/share) — played by ScenarioBar
+  scenarios/<scenario>.md      # scripted step sequences (clock/focus/share) — played from Settings ▸ Scenarios
 src/
   config.ts                    # SIM_START, HERO_PERSON/DEVICE, provider choice
   world/                       # loaders + zod schemas -> typed seed World + selectors
@@ -151,7 +151,7 @@ src/
     mock.ts                    # deterministic implementation
     llm/prompt.ts              # buildLLMRequest: ContextBundle -> exact Anthropic API payload
     llm/index.ts               # LLMIntelligence (dry-run today): shows the payload, no network
-    index.ts                   # provider selection (config + DevBar override) + intelligenceFor(personId)
+    index.ts                   # provider selection (config + Settings Brain override) + intelligenceFor(personId)
   context/                     # assembleContext(session, state, situation) -> bundle
   actions/                     # propose/commit pipeline + ProposalSheet UI
     capabilities.ts            # capability registry: app actions: frontmatter -> propose impls
@@ -164,14 +164,15 @@ src/
     usePlanRunner.tsx          # drives a plan through the phone (POV + lifted screen), pausing on action steps
     PlanSheet.tsx              # plan preview: approve the decomposition before it runs
     PlanProgress.tsx           # live execution HUD (checklist, current step)
-  scenarios/                   # scenario playback: pure step runner + ScenarioBar UI
+  scenarios/                   # scenario playback: pure step runner + Stage-level player
     runner.ts                  # resolveStep(step, state) -> events/focus/screen (reuses plans/executor primitives)
-    ScenarioBar.tsx             # out-of-phone player: pick/step/play a scenario
+    player.tsx                 # ScenarioPlayerProvider/useScenarioPlayer: playback that survives the Settings app closing
   ui/                          # shared primitives (Sheet, AppHeader, PillButton,
                                #   Avatar, EmptyState) + motion (useMountTransition)
   theme/                       # design-system + theme tokens -> CSS variables
-  phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, DevBar
+  phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, NavBar
     Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage)
+    NavBar.tsx                 # One UI 3-button nav (Recents inert · Home · Back); hold Home invokes the assistant
     screen.tsx                 # ScreenProvider/useScreenControl: shares the lifted screen with the in-phone assistant
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
@@ -181,7 +182,8 @@ src/
     contacts/                  # derived contacts graph; tap to select a person (ContactsApp)
     reminders/                 # to-dos from ReminderCreated events + direct add (RemindersApp)
     assistant/                 # conversation threads with the assistant; tap to resume one (AssistantApp)
-  App.tsx                      # providers + Stage (owns screen state, mounts Phone/DevBar/ScenarioBar)
+    settings/                  # Proto Settings: clock/POV/brain/reset/export + the scenario player (SettingsApp)
+  App.tsx                      # providers + Stage (owns screen state + ScenarioPlayerProvider, mounts Phone)
   main.tsx                     # React entry
 .github/workflows/deploy.yml   # build + deploy to GitHub Pages on push to main
 ```
@@ -215,7 +217,7 @@ font) over the shared OS design language. No code changes.
 **Add a person:** create `world/people/<id>/profile.md` (+ `devices/`, `files/`).
 Ids are kebab-case and must match the folder name. Give them a device
 (`devices/phone.md` with a `theme` + `apps:`) so they're embodiable via the POV
-switcher (dev bar). Their **contacts appear automatically** from the photo graph
+switcher (Settings ▸ Point of view). Their **contacts appear automatically** from the photo graph
 (see below) — put them in a photo with someone and the connection exists both
 ways.
 
@@ -293,11 +295,13 @@ their point of view. Attachments render via `resolveAsset(senderId, assetId)`.
 `useStore()`/`useNow()` hook; write only by dispatching a `SimEvent`. The event
 log is persisted automatically, so anything you record survives reloads.
 
-**Export a study session:** the DevBar's **⬇ Export** downloads the session as
-JSON — the full event log plus its **trace** (`src/state/trace.ts`): one
-`{seq, type, simAt, wallAt, taps}` entry per dispatched event, stamping
-wall-clock time and the cumulative in-phone tap count (a capture-phase pointer
-listener on the `DeviceFrame` screen; out-of-phone chrome doesn't count). The
+**Export a study session:** **Settings ▸ Data ▸ ⬇ Export session** downloads
+the session as JSON — the full event log plus its **trace**
+(`src/state/trace.ts`): one `{seq, type, simAt, wallAt, taps}` entry per
+dispatched event, stamping wall-clock time and the cumulative in-phone tap
+count (a capture-phase pointer listener on the `DeviceFrame` screen). Since
+the proto controls live in-phone, Settings taps count too — analysts bracket
+that activity via `AppOpened settings` events. The
 sim log stays purely sim-clocked — `trace.ts` is the ONE module allowed
 `Date.now()`, because it measures the human, not the sim. From the export an
 analyst computes taps/seconds between any two log points, e.g. manual-path vs
@@ -309,13 +313,15 @@ on **Reset world**.
 (cut to a person's phone on `locked`/`home`/`{app: <id>}`), `share` (script
 a `propose('share-photos', …)` → `commit` for that person's own gallery
 photos), or `message` (script `propose('send-message', …)` — a person texts
-`to:` recipients `text:`). It appears in the `ScenarioBar` picker
+`to:` recipients `text:`). It appears in the **Settings ▸ Scenarios** picker
 automatically — no code. `resolveStep(step, state)`
 (`src/scenarios/runner.ts`) is the pure function turning one step into events +
-where to focus; `ScenarioBar` dispatches them and drives
-`session.setPerson`/`setDevice` + the lifted `Phone` screen, the same levers
-`DevBar` exposes to a human. Clock steps can wake resident autopilot (below) —
-time passing IS a world event.
+where to focus; the Stage-level player (`src/scenarios/player.tsx`) dispatches
+them and drives `session.setPerson`/`setDevice` + the lifted `Phone` screen,
+the same levers Settings exposes to a human — and because playback state lives
+above the phone, a running scenario survives the Settings app closing under
+it. Clock steps can wake resident autopilot (below) — time passing IS a world
+event.
 
 **Give a resident autopilot:** add `auto-reply: { delay-hours: N, message:
 "…" }` under `behaviors:` in their profile (`world/people/<id>/profile.md`).
@@ -526,7 +532,7 @@ free-form request across apps, showing every step.
   scenario `resolveStep` share their step primitives (`focusScreen`,
   `appOpenedEvent`, the `propose`/`commit` capability path), so a planned step
   and a scripted step take the exact same road. `usePlanRunner` drives the phone
-  through a plan using the same POV + lifted-screen levers `DevBar`/`ScenarioBar`
+  through a plan using the same POV + lifted-screen levers the proto controls
   use — reached from the in-phone assistant via `useScreenControl`
   (`src/phone/screen.tsx`). Action steps pause at a `ProposalSheet` for approval;
   navigate steps auto-advance.
@@ -639,8 +645,8 @@ Roadmap stage ④: a world that acts back, without you embodying it.
   authored `evening-catchup` scenario shows the whole stage: Ava shares, a
   `clock` step wakes Sam's autopilot (no step sends his reply!), Maya's
   check-in is a `message` step, and Ava returns to a badged inbox.
-- **DevBar `+1h`**: advance the sim clock by an hour — time passing is now an
-  interesting act, since residents may respond to it.
+- **`+1h`** (now in Settings ▸ Simulation): advance the sim clock by an hour —
+  time passing is now an interesting act, since residents may respond to it.
 
 ### Roadmap — enhancement tracks (post-harness II)
 
@@ -691,7 +697,7 @@ first real-model sessions are measured from day one.
 
 Everything except the network call. `LLMIntelligence`
 (`src/intelligence/llm/`) implements `PersonIntelligence` behind the existing
-provider seam, selected via config or the DevBar **Brain** toggle (🧪 mock /
+provider seam, selected via config or the Settings **Brain** toggle (🧪 mock /
 🔌 llm dry-run, persisted per-browser in localStorage). Its `respond()`
 assembles the EXACT Anthropic Messages API request the real provider will
 send — `buildLLMRequest(ctx, history, message)` (`llm/prompt.ts`) produces
@@ -748,7 +754,8 @@ app** listing them (installed on all six phones).
 
 - **Each request is its own conversation**: `ChatMessage` events carry a
   `session` id. Invoking the assistant from anywhere OTHER than an existing
-  thread — the FAB, or the app's **New** button — mints a fresh id
+  thread — holding the nav bar's home button, or the app's **New** button —
+  mints a fresh id
   (`AssistantControlProvider`, `src/assistant/control.tsx`), so the sheet
   opens on an empty conversation; an unused id leaves no trace (a thread only
   exists once a turn is dispatched with it). Turns recorded before threads
@@ -774,7 +781,7 @@ that spawned them.
 The invoked assistant is no longer a full sheet: it's an ambient bottom
 surface with two states, floating over whatever screen is behind.
 
-- **Invoke (FAB)**: a theme-accent glow rises from the bottom edge (two
+- **Invoke (hold the nav bar's home button)**: a theme-accent glow rises from the bottom edge (two
   hue-shifted radial gradients — all derived from `--sim-accent`, so each
   resident's phone glows in their color), with the brain's TOP suggestion as
   a hint pill and an auto-focused input ("How can I help?"). Tapping the pill
@@ -789,13 +796,47 @@ surface with two states, floating over whatever screen is behind.
   llm-dry-run mode the payload renders in the card body.
 - **Displaced sections**: the Recent-activity feed (sent items + plan runs)
   moved into the Assistant app under the thread list; suggestions beyond the
-  top one are not shown anywhere (the FAB badge/halo still signals them).
+  top one are not shown anywhere (the home button's badge/halo still signals
+  them).
 - Plans and proposals are untouched: a plan reply still closes the surface
   and opens the PlanSheet -> runner -> HUD path.
 
 Deferred: multi-suggestion access from the surface (only the top one is
 reachable), a transcript affordance inside the surface (read the thread
 without leaving), voice-style input.
+
+### Settings app + One UI nav bar — the prototype eats its chrome ✅ (current, pre-M5)
+
+All out-of-phone chrome is gone; the phone is self-contained.
+
+- **The Settings app** (`world/apps/settings.md` + `src/apps/settings/`,
+  installed on all six phones — drop-a-file + one registry line, like any
+  app) absorbed every proto control: **Simulation** (sim clock + `+1h`),
+  **Point of view** (embody any resident; device switcher when a person has
+  several), **Brain** (mock / llm dry-run toggle — reloads), **Data** (Reset
+  world, Export session), and **Scenarios** (the scenario player). It declares
+  no actions, so the assistant's action space is unchanged. `DevBar` and
+  `ScenarioBar` are deleted.
+- **Scenario playback lifted to the Stage** (`ScenarioPlayerProvider` /
+  `useScenarioPlayer`, `src/scenarios/player.tsx`): playback state lives above
+  the phone because a `focus` step re-embodies another person, which closes
+  the very Settings app that pressed Play — the run must survive its own
+  controls unmounting. The Settings UI is just a consumer of the context.
+- **One UI 3-button nav bar** (`src/phone/NavBar.tsx`): Recents ||| (inert —
+  no recents surface exists) · Home ○ · Back ◁, rendered by `Phone` as a
+  `z-10` bottom layer — above home/app screens, below the lock layer (z-20),
+  which covers it for free. Back exits the open app; tapping Home goes home;
+  **press-and-hold Home (450ms) invokes the assistant**, replacing the
+  floating ✨ FAB — the suggestion beacon (halo + dot) moved from the FAB onto
+  the home button. The five per-app "Home" header pills and the decorative
+  home-screen gesture bar are gone; bottom-anchored chrome (composers, the
+  Photos action bar) pads itself clear of the translucent bar.
+- **Trace caveat**: proto controls now live in-phone, so their taps count in
+  the research trace; analysts bracket that activity via `AppOpened settings`
+  events (accepted trade-off, documented in `src/state/trace.ts`).
+
+Deferred: a real recents UI, nav-bar Back popping in-app sub-views (apps keep
+their header back-chevrons), interrupt-&-takeover from track ②.
 
 ### M5 — Real LLM provider (remaining)
 
