@@ -9,6 +9,7 @@ import { EXIT, useMountTransition } from '../ui';
 import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
+import { NavBar } from './NavBar';
 
 export type Screen =
   | { kind: 'locked' }
@@ -22,8 +23,8 @@ interface PhoneProps {
 
 /**
  * Orchestrates the embodied device: theme + the lock/home/app display. The
- * screen state itself is lifted to the stage (App) so a human tap, DevBar, and
- * the scenario player all drive it the same way.
+ * screen state itself is lifted to the stage (App) so a human tap, the
+ * Settings app, and the scenario player all drive it the same way.
  *
  * Screens render layered like a real phone OS — home is the always-rendered
  * base, apps zoom in above it, and the lock screen covers everything — so each
@@ -103,6 +104,12 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
           />
         </div>
       )}
+
+      {/* Nav layer: the 3-button bar sits above home + app screens but below
+          the lock layer (z-20), which covers it for free while locked. */}
+      <div className="absolute inset-x-0 bottom-0 z-10">
+        <NavBar />
+      </div>
 
       {/* Lock layer: covers everything; slides away on unlock. */}
       {lock.mounted && (

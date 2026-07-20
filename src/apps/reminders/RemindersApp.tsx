@@ -22,7 +22,7 @@ function timeLabel(at: number): string {
  * `create-reminder` plan step uses — typed by the user, so it commits without
  * an approval sheet (you don't approve your own words).
  */
-export function RemindersApp({ owner, onClose }: AppScreenProps) {
+export function RemindersApp({ owner }: AppScreenProps) {
   const { session } = useSession();
   const { state, dispatch } = useStore();
   const reminders = useMemo(
@@ -42,10 +42,7 @@ export function RemindersApp({ owner, onClose }: AppScreenProps) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <AppHeader
-        title="Reminders"
-        actions={<PillButton onClick={onClose}>Home</PillButton>}
-      />
+      <AppHeader title="Reminders" />
 
       <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">
         {reminders.length === 0 ? (
@@ -94,7 +91,7 @@ export function RemindersApp({ owner, onClose }: AppScreenProps) {
 
       <form
         onSubmit={onAdd}
-        className="flex gap-space-sm border-t border-text/5 bg-surface/95 px-space-lg py-space-md backdrop-blur"
+        className="flex gap-space-sm border-t border-text/5 bg-surface/95 px-space-lg pb-14 pt-space-md backdrop-blur"
       >
         <input
           value={draft}

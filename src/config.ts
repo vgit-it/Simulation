@@ -21,7 +21,7 @@ export const HERO_DEVICE_ID = 'ava-phone';
  *  - 'llm-dry-run': chat assembles the EXACT Anthropic API request (system
  *    prompt + capability tools + messages) and shows it instead of calling —
  *    no key, no network. The M5 real provider will reuse the same builder.
- * The DevBar Brain toggle overrides this per-browser via localStorage.
+ * The Settings app's Brain toggle overrides this per-browser via localStorage.
  */
 export type IntelligenceProviderName = 'mock' | 'llm-dry-run';
 export const INTELLIGENCE_PROVIDER: IntelligenceProviderName = 'mock';

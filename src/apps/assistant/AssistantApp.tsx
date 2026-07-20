@@ -21,7 +21,7 @@ function timeLabel(at: number): string {
 
 /**
  * The Assistant app: the owner's conversation history with their assistant,
- * one thread per request (every FAB invocation minted a fresh session id).
+ * one thread per request (every fresh invocation minted a new session id).
  * Tapping a thread RESUMES it — the invoked surface opens bound to that
  * conversation (showing its latest reply; the full history feeds the brain);
  * "New" (like invoking the assistant from anywhere else) starts a fresh one.
@@ -30,7 +30,7 @@ function timeLabel(at: number): string {
  * owns no chat machinery of its own: it just points the shared
  * AssistantControl at a thread.
  */
-export function AssistantApp({ owner, onClose }: AppScreenProps) {
+export function AssistantApp({ owner }: AppScreenProps) {
   const { state } = useStore();
   const control = useAssistantControl();
   const sessions = useMemo(
@@ -44,12 +44,7 @@ export function AssistantApp({ owner, onClose }: AppScreenProps) {
     <div className="flex h-full flex-col bg-bg">
       <AppHeader
         title="Assistant"
-        actions={
-          <>
-            <PillButton onClick={() => control.open()}>✨ New</PillButton>
-            <PillButton onClick={onClose}>Home</PillButton>
-          </>
-        }
+        actions={<PillButton onClick={() => control.open()}>✨ New</PillButton>}
       />
 
       <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">

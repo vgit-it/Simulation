@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useSession } from '../../session';
-import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
+import { AppHeader, Avatar, EmptyState } from '../../ui';
 import { contactsOf, sharedPhotos } from '../../world';
 import type { AppScreenProps } from '../types';
 
@@ -11,7 +11,7 @@ import type { AppScreenProps } from '../types';
  * contact selects them (kind 'people'), so the assistant can bind "message
  * *them*"; tapping again deselects.
  */
-export function ContactsApp({ owner, onClose }: AppScreenProps) {
+export function ContactsApp({ owner }: AppScreenProps) {
   const { session, setSelection } = useSession();
   const contacts = useMemo(() => contactsOf(owner.id), [owner.id]);
   const selectedId =
@@ -30,10 +30,7 @@ export function ContactsApp({ owner, onClose }: AppScreenProps) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <AppHeader
-        title="Contacts"
-        actions={<PillButton onClick={onClose}>Home</PillButton>}
-      />
+      <AppHeader title="Contacts" />
 
       <div className="flex-1 overflow-y-auto px-space-sm pb-space-xl">
         {contacts.length === 0 ? (

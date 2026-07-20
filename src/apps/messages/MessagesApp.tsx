@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '../../session';
 import { inboxThreads, unreadThreadKeys, useStore } from '../../state';
-import { AppHeader, Avatar, EmptyState, PillButton } from '../../ui';
+import { AppHeader, Avatar, EmptyState } from '../../ui';
 import { resolveAsset, resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
 import { Thread } from './Thread';
@@ -21,7 +21,7 @@ function timeLabel(at: number): string {
  * moment you embody them — no per-person mailbox plumbing, just a fold over the
  * log. Read-only for M3 (replying is a natural M4 follow-on).
  */
-export function MessagesApp({ owner, onClose }: AppScreenProps) {
+export function MessagesApp({ owner }: AppScreenProps) {
   const { setSelection } = useSession();
   const { state, dispatch } = useStore();
   const threads = useMemo(
@@ -77,10 +77,7 @@ export function MessagesApp({ owner, onClose }: AppScreenProps) {
 
   return (
     <div className="flex h-full flex-col bg-bg">
-      <AppHeader
-        title="Messages"
-        actions={<PillButton onClick={onClose}>Home</PillButton>}
-      />
+      <AppHeader title="Messages" />
 
       <div className="flex-1 overflow-y-auto px-space-sm pb-space-xl">
         {threads.length === 0 ? (

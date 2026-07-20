@@ -132,7 +132,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
 
       <form
         onSubmit={onReply}
-        className="flex gap-space-sm border-t border-text/5 bg-surface/95 px-space-lg py-space-md backdrop-blur"
+        className="flex gap-space-sm border-t border-text/5 bg-surface/95 px-space-lg pb-14 pt-space-md backdrop-blur"
       >
         <input
           value={draft}

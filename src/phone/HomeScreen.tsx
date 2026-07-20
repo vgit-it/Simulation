@@ -18,8 +18,8 @@ interface HomeScreenProps {
 
 /**
  * One UI-style home: a widget card up top (the greeting lives there, like the
- * stock weather/clock widget), a 4-column grid of squircle app icons on the
- * wallpaper, and the gesture bar.
+ * stock weather/clock widget) and a 4-column grid of squircle app icons on
+ * the wallpaper. The 3-button NavBar renders above this layer (in Phone).
  */
 export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps) {
   const now = useNow();
@@ -28,7 +28,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
   // second badged app appears, lift this into a per-app badge registry.
   const unread = unreadCountFor(state, owner.id);
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-bg bg-gradient-to-b from-accent/15 via-bg to-bg px-space-lg pb-space-2xl pt-space-lg">
+    <div className="flex h-full flex-col overflow-y-auto bg-bg bg-gradient-to-b from-accent/15 via-bg to-bg px-space-lg pb-16 pt-space-lg">
       <div className="mb-space-2xl flex animate-rise items-center justify-between rounded-ds-lg bg-surface/80 p-space-lg backdrop-blur-sm">
         <div>
           <p className="type-caption text-muted">{greeting(now.getHours())}</p>
@@ -60,10 +60,6 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
             </button>
           );
         })}
-      </div>
-
-      <div className="mt-auto flex justify-center pt-6">
-        <span className="h-1 w-32 rounded-full bg-text/30" />
       </div>
     </div>
   );
