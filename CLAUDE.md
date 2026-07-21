@@ -373,6 +373,18 @@ assistant reaches the lifted phone screen via `useScreenControl`
 (`src/phone/screen.tsx`). Adding a capability (see "Add an action/intent") widens
 what plans can contain — no plan-engine edits.
 
+**A share step's recipients come from the request, not just the photo:**
+`draftShare(photos)` (`src/intelligence/mock.ts`) computes "everyone tagged in
+the photo, minus the owner" — a sensible default, but only a default.
+`plan()`'s share step calls `requestedRecipients(ctx, request)` FIRST: an
+explicit people selection (a tapped contact, an open thread) or a name
+resolved from the request text (the same contact-name lookup `respond()` uses)
+wins and is passed as `payload.recipients` to `share-photos`; `draftShare`'s
+"everyone tagged" only applies when neither is present. Without this, "share
+this with Sam" on a photo tagged with both Sam and Leo would draft — and under
+`confirm-once`/`auto` supervision, actually send — to both, because the
+request's own recipient was never consulted.
+
 ## Content conventions
 
 - **Ids** are kebab-case and stable (they are referenced across files, e.g. a

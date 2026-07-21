@@ -87,6 +87,51 @@ describe('MockIntelligence.plan', () => {
     expect(plan!.steps.some((s) => s.id === 'confirm')).toBe(false);
   });
 
+  it('binds a share to the person NAMED in the request, not everyone tagged', () => {
+    // img-003 is tagged with both leo-park and sam-ruiz — asking to share it
+    // with "Sam" must not silently include Leo too.
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'photos', kind: 'photos', ids: ['img-003'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'share this with Sam');
+    expect(plan).not.toBeNull();
+    const action = plan!.steps.find((s) => s.intent === 'share-photos');
+    expect((action?.payload as { recipients: string[] } | undefined)?.recipients).toEqual([
+      'sam-ruiz',
+    ]);
+  });
+
+  it('binds a share to an explicit people selection over draftShare\'s default', () => {
+    // No photo selection (falls back to this week's shareable set, which
+    // includes photos tagged with sam-ruiz and maya-osei too), but a people
+    // selection (a tapped contact) says who to actually send it to.
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'contacts', kind: 'people', ids: ['leo-park'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'share this week with them');
+    expect(plan).not.toBeNull();
+    const action = plan!.steps.find((s) => s.intent === 'share-photos');
+    expect((action?.payload as { recipients: string[] } | undefined)?.recipients).toEqual([
+      'leo-park',
+    ]);
+  });
+
+  it('falls back to draftShare\'s "everyone tagged" default with no name or selection', () => {
+    const ctx = assembleContext(
+      { ...session, selection: { app: 'photos', kind: 'photos', ids: ['img-003'] } },
+      state,
+    );
+    const plan = brain.plan(ctx, 'share this');
+    expect(plan).not.toBeNull();
+    const action = plan!.steps.find((s) => s.intent === 'share-photos');
+    // No requested-recipient override -> no payload -> propose derives from
+    // draftShare, i.e. everyone tagged (leo-park + sam-ruiz).
+    expect(action?.payload).toBeUndefined();
+    expect(plan!.goal).toMatch(/Leo Park, Sam Ruiz|Sam Ruiz, Leo Park/);
+  });
+
   it('falls back to the last-shared-with fact for an unbound message request', () => {
     // No selection, no share step — but Ava's log says she last shared with Leo.
     const seeded = {
