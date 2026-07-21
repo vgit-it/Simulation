@@ -10,14 +10,32 @@ import { z } from 'zod';
 export const selectionSpecSchema = z.object({
   kind: z.string(),
   min: z.number().int().min(0).default(1),
+  /** The question to ask when this operand is missing (slot-filling). */
+  prompt: z.string().optional(),
 });
 export type SelectionSpec = z.infer<typeof selectionSpecSchema>;
+
+/**
+ * A free-form input an action needs beyond its selection operand — a share's
+ * recipients, a message's text, a reminder's title. Declares the input's key
+ * (matched to the propose payload) and the question to ask when it can't be
+ * resolved from the situation. `optional` slots never block or trigger a
+ * clarification (e.g. a message body the brain always drafts).
+ */
+export const slotSpecSchema = z.object({
+  key: z.string(),
+  prompt: z.string(),
+  optional: z.boolean().default(false),
+});
+export type SlotSpec = z.infer<typeof slotSpecSchema>;
 
 export const appActionSchema = z.object({
   id: z.string(),
   label: z.string(),
   intelligence: z.string().optional(),
   selection: selectionSpecSchema.optional(),
+  /** Payload inputs this action needs (beyond the selection operand). */
+  requires: z.array(slotSpecSchema).default([]),
 });
 export type AppAction = z.infer<typeof appActionSchema>;
 

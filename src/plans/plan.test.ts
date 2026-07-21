@@ -163,6 +163,18 @@ describe('MockIntelligence.plan', () => {
     expect(plan!.steps.some((s) => s.intent === 'create-reminder')).toBe(false);
   });
 
+  it('forms a reminder step with an EMPTY title when none is given (a slot to fill)', () => {
+    // "set a reminder" names the intent but no "remind me to X" phrase and no
+    // share context -> the title is left empty on purpose, so the assistant
+    // asks for it rather than inventing one.
+    const ctx = assembleContext(session, state);
+    const plan = brain.plan(ctx, 'set a reminder');
+    expect(plan).not.toBeNull();
+    const remind = plan!.steps.find((s) => s.intent === 'create-reminder');
+    expect(remind).toBeDefined();
+    expect((remind?.payload as { title: string }).title).toBe('');
+  });
+
   it('respond() surfaces a plan for an imperative request but not an advisory one', async () => {
     const ctx = assembleContext(session, state);
     expect((await brain.respond(ctx, [], "share this week's photos")).plan).toBeDefined();

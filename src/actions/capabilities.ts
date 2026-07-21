@@ -1,7 +1,15 @@
 import type { ContextBundle } from '../context';
+import { requestedShareRecipients } from '../intelligence/shareRecipients';
 import { uid, type SimEvent } from '../state';
-import { resolvePerson, world, type Photo, type SelectionSpec } from '../world';
+import {
+  resolvePerson,
+  world,
+  type AppAction,
+  type Photo,
+  type SelectionSpec,
+} from '../world';
 import type { Proposal } from './index';
+import type { Slot, SlotResolver } from './requirements';
 
 /**
  * The capability registry: the machine-readable catalog of everything the
@@ -24,6 +32,17 @@ export interface Capability {
   label: string;
   /** What must be selected for this capability to apply (absent = none). */
   selection?: SelectionSpec;
+  /**
+   * The inputs this action needs (its selection operand + declared payload
+   * slots), joined from the app's world file — the slot-filling vocabulary.
+   */
+  slots: Slot[];
+  /**
+   * Per-slot value resolvers for slots with a smart default (e.g. share
+   * recipients drafted from photo tags). Slots without one use the generic
+   * "is the value present" check. Keys are slot keys.
+   */
+  resolvers: Record<string, SlotResolver>;
   /** Build a previewable Proposal from object ids + payload — never mutates. */
   propose: (ctx: ContextBundle, ids: string[], payload?: ActionPayload) => Proposal;
 }
@@ -203,6 +222,64 @@ const implementations: Record<
   'create-reminder': proposeCreateReminder,
 };
 
+/**
+ * Slot value resolvers for slots that have a smart default — so the assistant
+ * only asks the user when a value genuinely can't be inferred. Recipients for a
+ * share come from (in order) an explicit payload, a person named in the request
+ * text, or "everyone tagged in the photo"; only when all three are empty is the
+ * slot missing. Slots not listed here fall back to the generic presence check.
+ */
+const shareResolvers: Record<string, SlotResolver> = {
+  recipients: (ctx, ids, payload, request) => {
+    if (Array.isArray(payload.recipients) && payload.recipients.length) {
+      return payload.recipients;
+    }
+    const named = requestedShareRecipients(ctx, request, ctx.owner.id);
+    if (named) return named.map((r) => r.id);
+    const photos = ctx.owner.gallery.filter((p) => ids.includes(p.id));
+    const drafted = ctx.brain.draftShare(photos).recipients;
+    return drafted.length ? drafted.map((r) => r.id) : null;
+  },
+};
+
+const messageResolvers: Record<string, SlotResolver> = {
+  // The recipients ARE the operand ids; if none are bound, try a name in the
+  // request text before giving up and asking who to message.
+  people: (ctx, ids, _payload, request) => {
+    if (ids.length) return ids;
+    const named = requestedShareRecipients(ctx, request, ctx.owner.id);
+    return named ? named.map((r) => r.id) : null;
+  },
+};
+
+/** intent id -> its per-slot resolvers (absent = all slots use the generic check). */
+const requirementResolvers: Record<string, Record<string, SlotResolver>> = {
+  'share-photos': shareResolvers,
+  'send-message': messageResolvers,
+};
+
+/** Join an action's world declaration into the flat slot list. */
+function slotsFor(action: AppAction): Slot[] {
+  const slots: Slot[] = [];
+  if (action.selection) {
+    slots.push({
+      key: action.selection.kind,
+      prompt: action.selection.prompt ?? `Which ${action.selection.kind}?`,
+      source: 'selection',
+      min: action.selection.min,
+    });
+  }
+  for (const req of action.requires) {
+    slots.push({
+      key: req.key,
+      prompt: req.prompt,
+      source: 'payload',
+      optional: req.optional,
+    });
+  }
+  return slots;
+}
+
 function buildRegistry(): Map<string, Capability> {
   const registry = new Map<string, Capability>();
   for (const app of Object.values(world.apps)) {
@@ -220,11 +297,23 @@ function buildRegistry(): Map<string, Capability> {
             `"${registry.get(action.id)!.app}" and "${app.id}" — action ids must be unique`,
         );
       }
+      const slots = slotsFor(action);
+      const resolvers = requirementResolvers[action.id] ?? {};
+      for (const key of Object.keys(resolvers)) {
+        if (!slots.some((s) => s.key === key)) {
+          throw new Error(
+            `Action "${action.id}" registers a resolver for slot "${key}" ` +
+              `that it does not declare (in world/apps/${app.id}.md)`,
+          );
+        }
+      }
       registry.set(action.id, {
         intent: action.id,
         app: app.id,
         label: action.label,
         selection: action.selection,
+        slots,
+        resolvers,
         propose,
       });
     }

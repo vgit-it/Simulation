@@ -25,7 +25,25 @@ describe('capability registry', () => {
   it('exposes the authored selection requirement', () => {
     const share = capabilityFor('share-photos');
     expect(share.app).toBe('photos');
-    expect(share.selection).toEqual({ kind: 'photos', min: 1 });
+    expect(share.selection).toMatchObject({ kind: 'photos', min: 1 });
+  });
+
+  it('joins each action\'s slots from its world declaration', () => {
+    // share-photos: the photos operand (selection) + a recipients payload slot.
+    const share = capabilityFor('share-photos');
+    expect(share.slots.map((s) => [s.key, s.source])).toEqual([
+      ['photos', 'selection'],
+      ['recipients', 'payload'],
+    ]);
+    expect(share.slots.find((s) => s.key === 'recipients')?.prompt).toMatch(
+      /who/i,
+    );
+    // create-reminder: no selection, one required title slot.
+    const remind = capabilityFor('create-reminder');
+    expect(remind.slots.map((s) => s.key)).toEqual(['title']);
+    // send-message: the message body is optional (the brain always drafts it).
+    const message = capabilityFor('send-message');
+    expect(message.slots.find((s) => s.key === 'text')?.optional).toBe(true);
   });
 
   it('throws loudly for an unknown intent', () => {

@@ -268,6 +268,24 @@ assistant, scenarios, and (next) runtime plans. `viableCapabilities(ctx)` is
 the decider-facing view: the capabilities usable right now, filtered by the
 embodied device's installed apps and the current selection.
 
+**Declare an action's required inputs (slots):** beyond `selection` (the
+operand — which photos, which people), an action can declare the free-form
+inputs it needs in `requires:` (`world/apps/<app>.md`) — each a `{key, prompt,
+optional?}` where `key` matches the propose payload and `prompt` is the
+question to ask when it's missing (`recipients` for share, `title` for a
+reminder; a message's `text` is `optional: true` since the brain always drafts
+it). The registry joins these into `capability.slots` and, in code, a per-slot
+`resolver` (`requirementResolvers` in `src/actions/capabilities.ts`) for slots
+with a smart default — e.g. share `recipients` resolve to an explicit payload,
+a name in the request, or "everyone tagged", and only when ALL are empty is
+the slot missing (so a solo photo with no name asked about, a group photo
+defaulted silently). `missingSlots`/`firstPlanGap`/`absorbAnswer`
+(`src/actions/requirements.ts`, pure) are the slot-filling API the assistant
+uses: `firstPlanGap` finds the first action step still short an input,
+`absorbAnswer` folds the user's free-text answer back into that step's payload
+(a name → a person id via the resolver; a title verbatim). Declaration in
+content, resolution in code — the same split as the capability registry.
+
 **Expose a user selection to the assistant:** apps write what the user has
 picked to the session (`setSelection({ app, kind, ids })`, `src/session`);
 `assembleContext` folds it into `ContextBundle.situation.selection`
@@ -982,6 +1000,45 @@ Deferred: per-notification dismissal (only Clear-all today), notification
 sources beyond messages/reminders (plan completions, e.g.), a real
 swipe/drag gesture for the shade (tap-to-open today), a composer inside the
 in-app ChatThread (Continue hands off instead).
+
+### Slot-filling — the assistant asks for what's missing ✅ (current, pre-M5)
+
+Once an intent is known, the assistant now checks what that action still
+NEEDS and asks for anything it genuinely can't determine — turning "share
+this" (with nobody to send to) into "Who should I share these with?" instead
+of silently defaulting or blocking, exactly the nuance the example ("to send a
+photo you need which photo and to whom") called for.
+
+- **Slots are authored** (`requires:` in `world/apps/*.md`, schema'd in
+  `src/world/schema.ts`): each action declares its free-form inputs beyond the
+  selection operand — `recipients` (share), `title` (reminder), an `optional`
+  `text` (message) — with the `prompt` to ask when missing. A `selection` spec
+  gained a `prompt` too, so the operand is just another slot.
+- **Resolution is code** (`src/actions/requirements.ts`, pure + tested): the
+  registry joins each action's slots into `capability.slots`; per-slot
+  `resolvers` (`src/actions/capabilities.ts`) give slots with a smart default a
+  chance to fill themselves — share `recipients` resolve to a payload override,
+  a name in the request, or "everyone tagged", and are missing ONLY when all
+  three come up empty (a solo photo, no name). `missingSlots`/`firstPlanGap`
+  find what a plan step still lacks; `absorbAnswer` folds a free-text answer
+  back in (a name → a person id via the same resolver; a title verbatim).
+- **The clarify loop lives in the assistant** (`src/assistant/Assistant.tsx`),
+  so it works for ANY provider's plan (mock or Gemini): a fresh reply's plan is
+  gated through `firstPlanGap` — a gap becomes the assistant's question and the
+  plan is held `pending`; the next turn answers it (`absorbAnswer`), re-checks
+  for further gaps, and once complete previews the now-fully-specified plan
+  through the normal `PlanSheet` → runner → `ProposalSheet` path. No brain call
+  on an answer turn — it's pure slot-filling over the plan already in hand. The
+  mock's `plan()` now forms an action step even when a slot is empty (rather
+  than dropping the share or fabricating a filler title) so there's a step to
+  ask about.
+
+Deferred: message-recipient clarify (the mock drops a message step with no
+recipients before a plan forms, so "message someone" doesn't yet reach the
+loop); refreshing a step's description text after an answer (the recipient
+rides in the payload + shows in the ProposalSheet, but the plan line stays
+generic, e.g. "Share it"); collecting a missing slot inside the ProposalSheet
+for the direct (non-chat) share/manual paths.
 
 ### M6 — More device shells & richer visuals
 

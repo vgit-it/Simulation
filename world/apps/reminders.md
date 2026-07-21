@@ -7,6 +7,9 @@ capabilities: [list-reminders, create-reminder]
 actions:
   - id: create-reminder
     label: Remind me
+    requires:
+      - key: title
+        prompt: "What should I remind you about?"
 ---
 Reminders is the owner's lightweight to-do surface. Reminders are runtime
 state — `ReminderCreated` events in the world log — created either directly in

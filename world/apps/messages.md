@@ -7,7 +7,11 @@ capabilities: [inbox, threads, receive-shares, send]
 actions:
   - id: send-message
     label: Message
-    selection: { kind: people, min: 1 }
+    selection: { kind: people, min: 1, prompt: "Who do you want to message?" }
+    requires:
+      - key: text
+        prompt: "What should the message say?"
+        optional: true
 ---
 Messages is the owner's inbox. Conversations are derived from the world's global
 event log — every share or message sent to this person "arrives" here — grouped
