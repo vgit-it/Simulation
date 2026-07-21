@@ -56,9 +56,18 @@ export function buildTools(ctx: ContextBundle): LLMTool[] {
             selection.ids.length >= c.selection.min
           ? ' Currently satisfied by the user selection.'
           : ' NOT currently satisfied.';
+      // share-photos has a sharp edge: no payload.recipients silently means
+      // "everyone tagged in the photo", not "whoever the request named" — a
+      // step whose description mentions one person but omits this field still
+      // sends to everyone tagged. Spell that out so the model doesn't infer
+      // its own prose is enough.
+      const recipientsWarning =
+        c.intent === 'share-photos'
+          ? ' IMPORTANT: omitting payload.recipients shares with EVERY person tagged in the photo(s), regardless of what this step\'s description says. Whenever the user names a specific person or a people selection is active, you MUST set payload.recipients to just their id(s) — never rely on the description text alone to scope the send.'
+          : '';
       return {
         name: c.intent,
-        description: `${c.label} — owned by the "${c.app}" app.${requirement}${satisfied}`,
+        description: `${c.label} — owned by the "${c.app}" app.${requirement}${satisfied}${recipientsWarning}`,
         input_schema: {
           type: 'object',
           properties: {

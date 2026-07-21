@@ -5,6 +5,7 @@ import type { ContextBundle } from '../../context';
 import { uid } from '../../state';
 import type { Plan, PlanStep } from '../../plans/types';
 import type { Photo } from '../../world';
+import { requestedShareRecipients } from '../shareRecipients';
 import type {
   ChatReply,
   ChatTurn,
@@ -266,6 +267,41 @@ export function parseChatReply(text: string): ChatReply {
   return { text: replyText, plan: builtPlan };
 }
 
+/**
+ * Safety net over a model-authored plan: the model can describe the right
+ * recipient in a step's prose while still omitting `payload.recipients` —
+ * `proposeSharePhotos` silently defaults to "everyone tagged in the photo"
+ * whenever that field is absent, so a step that LOOKS scoped to one person can
+ * still commit to everyone in the photo. `parseChatReply` only validates
+ * shape (it has no `ctx`/request text), so this runs afterward, in `respond`,
+ * over any `share-photos` step the model didn't already narrow — using the
+ * SAME resolution the mock brain's `plan()` applies (an explicit people
+ * selection, or a name in the request text). A step the model already scoped
+ * (a non-empty `payload.recipients`) is left untouched.
+ */
+export function withRequestedShareRecipients(
+  reply: ChatReply,
+  ctx: ContextBundle,
+  request: string,
+): ChatReply {
+  if (!reply.plan) return reply;
+  let narrowed = false;
+  const steps = reply.plan.steps.map((step) => {
+    if (step.intent !== 'share-photos') return step;
+    const recipients = (step.payload as { recipients?: unknown } | undefined)
+      ?.recipients;
+    if (Array.isArray(recipients) && recipients.length) return step;
+    const requested = requestedShareRecipients(ctx, request, ctx.owner.id);
+    if (!requested) return step; // no signal to narrow — the capability's own default stands.
+    narrowed = true;
+    return {
+      ...step,
+      payload: { ...step.payload, recipients: requested.map((r) => r.id) },
+    };
+  });
+  return narrowed ? { ...reply, plan: { ...reply.plan, steps } } : reply;
+}
+
 class GeminiPersonIntelligence implements PersonIntelligence {
   constructor(
     readonly personId: string,
@@ -306,7 +342,7 @@ class GeminiPersonIntelligence implements PersonIntelligence {
       this.apiKey(),
       modelChain(this.model()),
     );
-    return parseChatReply(text);
+    return withRequestedShareRecipients(parseChatReply(text), ctx, message);
   }
 }
 
