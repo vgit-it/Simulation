@@ -8,7 +8,10 @@ actions:
   - id: share-photos
     label: Share
     intelligence: share-photos
-    selection: { kind: photos, min: 1 }
+    selection: { kind: photos, min: 1, prompt: "Which photos do you want to share?" }
+    requires:
+      - key: recipients
+        prompt: "Who should I share these with?"
 ---
 Photos surfaces the owner's gallery. "Who is in a photo" and "which photos are
 from this week" come from committed metadata sidecars, not image analysis — the

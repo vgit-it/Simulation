@@ -251,13 +251,16 @@ class MockPersonIntelligence implements PersonIntelligence {
     let shareRecipients: ResolvedPerson[] = [];
     if (wantsShare && apps.includes('photos')) {
       sharePhotos = this.requestPhotos(ctx);
-      const requested = sharePhotos.length
-        ? requestedShareRecipients(ctx, request, this.personId)
-        : null;
-      const draft = sharePhotos.length ? this.draftShare(sharePhotos) : null;
-      const recipients = requested ?? draft?.recipients ?? [];
-      if (recipients.length) {
-        shareRecipients = recipients;
+      // Form the share step whenever there are photos to share — even if we
+      // can't yet tell WHO to send to. An empty recipient set is a missing
+      // slot the assistant asks about (missingSlots/firstPlanGap), not a
+      // reason to silently drop the action.
+      if (sharePhotos.length) {
+        const requested = requestedShareRecipients(ctx, request, this.personId);
+        const draft = this.draftShare(sharePhotos);
+        // For the description + message chaining; the recipients that actually
+        // commit are re-resolved (or asked for) at proposal time.
+        shareRecipients = requested ?? draft.recipients;
         const fromSelection = sel?.kind === 'photos' && sel.ids.length > 0;
         const count = sharePhotos.length;
         const noun = `photo${count === 1 ? '' : 's'}`;
@@ -278,10 +281,14 @@ class MockPersonIntelligence implements PersonIntelligence {
             ...(requested && {
               payload: { recipients: requested.map((r) => r.id) },
             }),
-            description: `Share ${count === 1 ? 'it' : 'them'} with ${names}`,
+            description: names
+              ? `Share ${count === 1 ? 'it' : 'them'} with ${names}`
+              : `Share ${count === 1 ? 'it' : 'them'}`,
           },
         );
-        goalBits.push(`share ${count} ${noun} with ${names}`);
+        goalBits.push(
+          names ? `share ${count} ${noun} with ${names}` : `share ${count} ${noun}`,
+        );
       }
     }
 
@@ -315,20 +322,23 @@ class MockPersonIntelligence implements PersonIntelligence {
     // ("remind me to print one" -> "print one") or falls back to the share.
     if (wantsReminder && apps.includes('reminders')) {
       const match = request.match(/remind (?:me )?(?:to )?([^,.!?]+)/i);
+      // No explicit "remind me to X" and no share to follow up on -> leave the
+      // title empty; that's a missing slot the assistant asks about rather
+      // than a filler the user never chose.
       const title =
         match?.[1]?.trim() ??
         (sharePhotos.length
           ? `Follow up on ${sharePhotos.length} shared photo${
               sharePhotos.length === 1 ? '' : 's'
             }`
-          : 'Follow up');
+          : '');
       steps.push({
         id: 'remind',
         app: 'reminders',
         intent: 'create-reminder',
         ids: sharePhotos.map((p) => p.id),
         payload: { title },
-        description: `Add reminder: “${title}”`,
+        description: title ? `Add reminder: “${title}”` : 'Add a reminder',
       });
       goalBits.push('add a reminder');
     }

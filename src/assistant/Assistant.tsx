@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { propose, type Proposal } from '../actions';
+import {
+  absorbAnswer,
+  firstPlanGap,
+  propose,
+  type Proposal,
+  type Slot,
+} from '../actions';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
 import {
@@ -45,6 +51,15 @@ export function Assistant() {
   const open = control.sessionId !== null;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
+  // A plan waiting on a missing input: the assistant asked `slot.prompt` and
+  // the user's next turn answers it (slot-filling). Cleared once the plan is
+  // fully specified (→ preview) or the conversation resets.
+  const [pending, setPending] = useState<{
+    plan: Plan;
+    stepIndex: number;
+    slot: Slot;
+    request: string;
+  } | null>(null);
   const [chatInput, setChatInput] = useState('');
   // The dry-run brain's assembled API payload (shown instead of an answer).
   const [lastRequest, setLastRequest] = useState<LLMRequest | null>(null);
@@ -70,6 +85,7 @@ export function Assistant() {
   useEffect(() => {
     setLastRequest(null);
     setThinking(false);
+    setPending(null);
     clearTimeout(thinkingTimer.current);
   }, [control.sessionId]);
 
@@ -107,6 +123,20 @@ export function Assistant() {
     setProposal(propose(s.intent, ctx, s.ids, s.payload));
   }
 
+  /** Record the plan as proposed (telemetry) and open its preview. */
+  function proposePlan(plan: Plan, at: number, person: string) {
+    dispatch({
+      type: 'PlanProposed',
+      at,
+      person,
+      planId: plan.id,
+      goal: plan.goal,
+      steps: plan.steps.length,
+    });
+    setPreviewPlan(plan);
+    control.close();
+  }
+
   async function onChatSubmit(e: FormEvent) {
     e.preventDefault();
     const message = chatInput.trim();
@@ -115,11 +145,8 @@ export function Assistant() {
     const ctx = assembleContext(session, state, {});
     const at = state.clock;
     const person = session.personId;
-    const history = chatHistory.map((t) => ({ role: t.role, text: t.text }));
 
-    // Commit the user's turn and clear the box immediately — the reply is
-    // async (a real provider awaits the network), so the input can't wait on
-    // it. Typing dots show while we resolve.
+    // Commit the user's turn and clear the box immediately.
     dispatch({
       type: 'ChatMessage',
       at,
@@ -129,7 +156,53 @@ export function Assistant() {
       session: thread,
     });
     setChatInput('');
+
+    const say = (text: string) =>
+      dispatch({
+        type: 'ChatMessage',
+        at,
+        person,
+        role: 'assistant',
+        text,
+        session: thread,
+      });
+
+    // Clarification branch: this turn answers the assistant's pending question.
+    // Fold the answer into the step's payload, then either ask for the next
+    // missing input or preview the now-complete plan. No brain call — the loop
+    // is pure slot-filling over the plan we already have.
+    if (pending) {
+      const step = pending.plan.steps[pending.stepIndex];
+      const payload = absorbAnswer(
+        step.intent!,
+        pending.slot,
+        message,
+        ctx,
+        step.ids ?? [],
+        step.payload ?? {},
+      );
+      const updated: Plan = {
+        ...pending.plan,
+        steps: pending.plan.steps.map((s, i) =>
+          i === pending.stepIndex ? { ...s, payload } : s,
+        ),
+      };
+      const gap = firstPlanGap(updated, ctx, message);
+      if (gap) {
+        say(gap.slot.prompt);
+        setPending({ ...pending, plan: updated, stepIndex: gap.stepIndex, slot: gap.slot });
+        return;
+      }
+      say("Got it — here's the plan.");
+      setPending(null);
+      proposePlan(updated, at, person);
+      return;
+    }
+
+    // Fresh request: ask the brain. The reply is async (a real provider awaits
+    // the network), so the input can't wait on it — typing dots show meanwhile.
     setThinking(true);
+    const history = chatHistory.map((t) => ({ role: t.role, text: t.text }));
 
     // Pace the reveal: race the reply against a minimum "thinking beat" so the
     // (instant) mock still reads as an act, while a slow network call just
@@ -160,30 +233,22 @@ export function Assistant() {
     }
 
     setThinking(false);
-    dispatch({
-      type: 'ChatMessage',
-      at,
-      person,
-      role: 'assistant',
-      text: reply.text,
-      session: thread,
-    });
-    // A task-shaped reply carries a plan. PlanProposed lands before approval so
-    // declined plans still leave a telemetry trail.
-    if (reply.plan) {
-      dispatch({
-        type: 'PlanProposed',
-        at,
-        person,
-        planId: reply.plan.id,
-        goal: reply.plan.goal,
-        steps: reply.plan.steps.length,
-      });
-    }
+
+    // Requirement gate: a plan whose action step is missing a required input
+    // becomes a targeted question instead of a preview. The user's next turn
+    // answers it (the clarification branch above).
+    const gap = reply.plan ? firstPlanGap(reply.plan, ctx, message) : null;
+    say(gap ? gap.slot.prompt : reply.text);
     if (reply.llmRequest) setLastRequest(reply.llmRequest);
-    if (reply.plan) {
-      setPreviewPlan(reply.plan);
-      control.close();
+    if (gap) {
+      setPending({
+        plan: reply.plan!,
+        stepIndex: gap.stepIndex,
+        slot: gap.slot,
+        request: message,
+      });
+    } else if (reply.plan) {
+      proposePlan(reply.plan, at, person);
     }
   }
 

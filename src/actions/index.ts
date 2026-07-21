@@ -56,6 +56,14 @@ export {
   type Capability,
 } from './capabilities';
 
+export {
+  absorbAnswer,
+  firstPlanGap,
+  missingSlots,
+  type Slot,
+  type SlotResolver,
+} from './requirements';
+
 /**
  * Build a proposal for an intent via the capability registry. `ids` are the
  * object ids the action operates on (photos, people, ...); `payload` carries
