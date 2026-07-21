@@ -68,6 +68,7 @@ export interface RuntimeState {
   plans: PlanRun[]; // runtime plans, in start order
   chats: ChatTurnRecord[]; // assistant-chat turns, in order
   reads: Record<string, Record<string, number>>; // personId -> threadKey -> last read at
+  notificationsClearedAt: Record<string, number>; // personId -> shade-cleared watermark
 }
 
 export function freshState(): RuntimeState {
@@ -80,6 +81,7 @@ export function freshState(): RuntimeState {
     plans: [],
     chats: [],
     reads: {},
+    notificationsClearedAt: {},
   };
 }
 
@@ -133,6 +135,17 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
         },
       };
     }
+    case 'NotificationsCleared':
+      return {
+        ...state,
+        notificationsClearedAt: {
+          ...state.notificationsClearedAt,
+          [event.person]: Math.max(
+            state.notificationsClearedAt[event.person] ?? -1,
+            event.at,
+          ),
+        },
+      };
     case 'ChatMessage':
       return {
         ...state,

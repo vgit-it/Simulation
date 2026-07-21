@@ -11,6 +11,10 @@ interface DeviceFrameProps {
    * the screen regardless of content scroll (e.g. the floating assistant).
    */
   overlay?: ReactNode;
+  /** Waiting-notification count shown in the status bar. */
+  notificationCount?: number;
+  /** Status-bar tap → pull the notification shade down (unlocked only). */
+  onOpenShade?: () => void;
 }
 
 /**
@@ -19,7 +23,13 @@ interface DeviceFrameProps {
  * overlays (sheets, lightboxes) portal into a container rendered last so they
  * always paint above screens and the assistant (see OverlayLayer).
  */
-export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) {
+export function DeviceFrame({
+  themeVars,
+  children,
+  overlay,
+  notificationCount,
+  onOpenShade,
+}: DeviceFrameProps) {
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
   return (
     <div
@@ -37,7 +47,10 @@ export function DeviceFrame({ themeVars, children, overlay }: DeviceFrameProps) 
       >
         {/* Galaxy-style centered punch-hole camera */}
         <div className="absolute left-1/2 top-3 z-20 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-white/5" />
-        <StatusBar />
+        <StatusBar
+          notificationCount={notificationCount}
+          onOpenShade={onOpenShade}
+        />
         <OverlayPortalContext.Provider value={portalEl}>
           {/* Screens are layered (home base, app, lock) and each manages its
               own scrolling, so this container just clips. */}

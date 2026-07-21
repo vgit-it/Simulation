@@ -106,6 +106,84 @@ export function unreadCountFor(state: RuntimeState, personId: string): number {
 }
 
 /**
+ * One phone notification — a fact of the event log, not authored content. The
+ * shape is neutral (ids only, no resolved names): the UI turns `fromId` into a
+ * sender avatar/name, so the selector stays decoupled from `world`.
+ */
+export interface Notification {
+  /** Stable id ('msg:<messageId>' | 'rem:<reminderId>') for React keys. */
+  id: string;
+  at: number;
+  kind: 'message' | 'reminder';
+  /** Which app opens when the notification is tapped. */
+  appId: string;
+  /** Sender to resolve for a message notification (absent for reminders). */
+  fromId?: string;
+  /** A non-person heading the UI can show as-is ('New message' | 'Reminder'). */
+  title: string;
+  body: string;
+  /** Attachment/related-asset count, for a small "📎 N" hint. */
+  attachments: number;
+}
+
+/**
+ * A person's live notifications, newest first — derived, like everything else,
+ * from the log. Two sources today:
+ *  - **inbound messages**: one per UNREAD thread (its newest, inbound message),
+ *    so opening the thread (ThreadRead) retires the notification exactly as it
+ *    clears the badge — one read model, two surfaces.
+ *  - **reminders**: each reminder the person created.
+ * Both are gated by the shade's cleared watermark, so "Clear all" dismisses
+ * whatever is showing while anything newer resurfaces.
+ */
+export function notificationsFor(
+  state: RuntimeState,
+  personId: string,
+): Notification[] {
+  const clearedAt = state.notificationsClearedAt[personId] ?? -1;
+  const items: Notification[] = [];
+
+  const unread = unreadThreadKeys(state, personId);
+  for (const t of inboxThreads(state, personId)) {
+    // unreadThreadKeys guarantees t.last is inbound (not the viewer's own).
+    if (!unread.has(t.key) || t.last.at <= clearedAt) continue;
+    items.push({
+      id: `msg:${t.last.id}`,
+      at: t.last.at,
+      kind: 'message',
+      appId: 'messages',
+      fromId: t.last.from,
+      title: 'New message',
+      body: t.last.body,
+      attachments: t.last.attachments.length,
+    });
+  }
+
+  for (const r of remindersFor(state, personId)) {
+    if (r.at <= clearedAt) continue;
+    items.push({
+      id: `rem:${r.id}`,
+      at: r.at,
+      kind: 'reminder',
+      appId: 'reminders',
+      title: 'Reminder',
+      body: r.title,
+      attachments: r.related.length,
+    });
+  }
+
+  return items.sort((a, b) => b.at - a.at);
+}
+
+/** How many notifications a person has waiting (the status-bar count). */
+export function notificationCountFor(
+  state: RuntimeState,
+  personId: string,
+): number {
+  return notificationsFor(state, personId).length;
+}
+
+/**
  * A person's assistant-chat history (oldest first — conversation order).
  * Scoped to one conversation thread when `session` is given — the fresh-vs-
  * resumed distinction: a newly minted session id matches nothing, so the

@@ -1,5 +1,6 @@
-import { useNow } from '../state';
+import { notificationsFor, useNow, useStore } from '../state';
 import type { LoadedPerson } from '../world';
+import { NotificationCard } from './NotificationCard';
 
 function bigTime(d: Date): string {
   const h = d.getHours();
@@ -18,19 +19,25 @@ function longDate(d: Date): string {
 interface LockScreenProps {
   owner: LoadedPerson;
   onUnlock: () => void;
+  /** Tapping a lock-screen notification unlocks straight into its app. */
+  onOpenApp: (appId: string) => void;
 }
 
 /**
- * One UI-style lock screen: big bold clock with the date beneath, a Now
- * Bar-style pill carrying the owner identity, and the two frosted corner
- * shortcuts (decorative — the whole screen is the unlock control).
+ * One UI-style lock screen: big bold clock with the date beneath, a stack of
+ * notification cards, a Now Bar-style pill carrying the owner identity, and the
+ * two frosted corner shortcuts (decorative — the whole screen is the unlock
+ * control). A notification card is a nested button: tapping it opens its app,
+ * tapping anywhere else unlocks.
  */
-export function LockScreen({ owner, onUnlock }: LockScreenProps) {
+export function LockScreen({ owner, onUnlock, onOpenApp }: LockScreenProps) {
   const now = useNow();
+  const { state } = useStore();
+  const notifications = notificationsFor(state, owner.id);
   return (
     <button
       onClick={onUnlock}
-      className="flex h-full w-full flex-col items-center bg-bg bg-gradient-to-b from-accent/25 via-bg to-bg px-6 pb-6 pt-24 text-center outline-none transition-transform duration-150 active:scale-[0.99]"
+      className="flex h-full w-full flex-col items-center overflow-y-auto bg-bg bg-gradient-to-b from-accent/25 via-bg to-bg px-6 pb-6 pt-20 text-center outline-none transition-transform duration-150 active:scale-[0.99]"
       aria-label="Unlock phone"
     >
       <div className="flex flex-col items-center">
@@ -42,6 +49,25 @@ export function LockScreen({ owner, onUnlock }: LockScreenProps) {
           {longDate(now)}
         </p>
       </div>
+
+      {notifications.length > 0 && (
+        <div
+          className="mt-space-xl flex w-full flex-col gap-space-sm"
+          // The cards are interactive; a tap inside must not bubble to unlock.
+          onClick={(e) => e.stopPropagation()}
+        >
+          {notifications.map((n, i) => (
+            <NotificationCard
+              key={n.id}
+              ownerId={owner.id}
+              notification={n}
+              onOpen={() => onOpenApp(n.appId)}
+              className="animate-rise"
+              style={{ animationDelay: `${150 + Math.min(i, 8) * 40}ms` }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Now Bar-style identity pill */}
       <span
