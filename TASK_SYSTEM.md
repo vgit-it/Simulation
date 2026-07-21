@@ -170,6 +170,58 @@ unified model they fold into.
   the world right now" (owner, selection, facts). Task *results* flow via the
   stack; ambient world is *read* from context.
 
+## LLM call cost — cache the prefix, retrieve the context
+
+Focus: **per-call token size** — the dominant cost as the world and capability
+catalog grow. (Call *count* is already ~1 per novel request; keep it that way.)
+
+- **Target property:** cost scales with **novelty**, not with world size or
+  capability count. A richer world / bigger catalog should inflate only the
+  **cached prefix** (paid ~once per session) and the **local retrieval corpus**
+  (queried, never fully shipped) — never the per-call token bill.
+- **Call-count invariant (already held — keep it):**
+  - **One model call per novel request** — `respond()` returns the whole plan;
+    execution, clarification, and consent are local (0 calls).
+  - **Slot-filling answers are free** — folded + re-checked locally
+    (`absorbAnswer` / `firstPlanGap`), no brain call.
+  - **Non-decider work is deterministic/local** — grouping, drafts, resolvers,
+    confidence, suggestions delegate to the mock; only `respond()` spends tokens.
+  - Never put the model in the execution loop, however many task types are added.
+- **Split every request into two zones:**
+  - **Cacheable prefix (stable across a session):** persona + OS rules + the
+    **full tool catalog** + the response contract. Grows with capabilities but is
+    paid ~once, not per turn.
+  - **Volatile suffix (per turn, kept small):** a retrieved context slice +
+    compacted history + the new message.
+- **Provider-specific caching at the boundary:** the neutral `LLMRequest` gains a
+  way to **mark its cacheable prefix**; each provider adapter applies its native
+  mechanism at the network edge — Gemini `cachedContent`, Anthropic
+  `cache_control` — so upstream stays provider-neutral while the boundary
+  optimizes. **Requirement:** the prefix must be byte-stable across turns, so no
+  volatile data may be interleaved into it (today `buildSystemPrompt` mixes the
+  Situation/gallery into the system string — that moves to the volatile suffix).
+- **Retrieval, not world-dump:** replace the whole-gallery serialization with a
+  deterministic **relevance slice** — selected objects, people named in the
+  request (`requestedShareRecipients`), and recency windows (already used:
+  `messagesInvolving(...).slice(-10)`). Ground truth stays committed metadata;
+  only the *relevant* ground truth ships.
+- **History compaction:** window recent turns + a running summary of older ones,
+  instead of re-sending the full thread.
+- **Decision — cache the full catalog; do NOT subset tools per request.**
+  Per-request tool subsetting shrinks a payload but **busts the prefix cache**
+  every turn; with caching as the primary size lever, a stable fully-cached
+  catalog wins. (Revisit only if the catalog grows so large the cached write
+  itself hurts.)
+- **Determinism / mock:** retrieval and prefix assembly are pure local functions;
+  the mock/offline path spends no tokens and is unaffected (principle 8).
+- **Secondary lever (call count):** authored **recipes / memoized plans**
+  short-circuit the model entirely for known tasks (0 calls) — as the recipe
+  library grows, the fraction of requests reaching the model drops (see
+  Composition).
+- **Measured, not assumed:** log **input/output tokens per call + cache-hit
+  rate** in the trace, so a size reduction is verified to preserve task success
+  ("minimize without losing capability").
+
 ## Alignment with project principles
 
 - **Content ≠ code** — leaf primitives (effect/query) in code; simple/composite
@@ -202,3 +254,6 @@ unified model they fold into.
 - **Derived stakes** — compute a task's stakes from its reversibility / cost of
   reversal (does a cheap compensating/undo task exist?), instead of an explicit
   declaration.
+- **Retrieval ranking** — the volatile context slice uses deterministic signals
+  (selection, named entities, recency) today; a smarter, still-offline relevance
+  ranker is a later refinement.
