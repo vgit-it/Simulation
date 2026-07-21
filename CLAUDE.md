@@ -16,6 +16,11 @@ Guidance for Claude Code (and humans) working in this repository.
 > Treat a PR that changes behavior but leaves this file stale as incomplete.
 > When in doubt, err toward updating it.
 
+> **Task System:** the unified task/agent model (simple + complex tasks,
+> elicitation, confidence-graded inference, the task stack) is designed in
+> [`TASK_SYSTEM.md`](./TASK_SYSTEM.md) — its **single source of truth**. Put
+> task-system design detail there and link to it from here; don't duplicate it.
+
 ## What this project is
 
 **Simulation** is a simulated world of people and their devices (phones, and

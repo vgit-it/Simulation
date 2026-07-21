@@ -114,7 +114,9 @@ with the file path and the exact problem.
   perception, no tokens.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the full architecture, extension recipes, and
-milestone plan.
+milestone plan, and [`TASK_SYSTEM.md`](./TASK_SYSTEM.md) for the design of the
+unified **task system** (simple + complex tasks, elicitation, confidence-graded
+inference, the task stack).
 
 ## Deployment
 
