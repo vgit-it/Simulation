@@ -1032,6 +1032,13 @@ photo you need which photo and to whom") called for.
   mock's `plan()` now forms an action step even when a slot is empty (rather
   than dropping the share or fabricating a filler title) so there's a step to
   ask about.
+- **The surface waits for the answer**: while a clarification is `pending`, an
+  outside tap does NOT dismiss the ambient surface (the one design exception to
+  "tap anywhere to close") — otherwise a stray tap would strand the half-built
+  plan and re-route the answer as a fresh request in a new thread. An answer a
+  resolver can't use (a share recipient who isn't a contact) is acknowledged
+  ("I didn't catch that. …") instead of silently re-asking the identical
+  question. Switching POV still abandons a pending clarification.
 
 Deferred: message-recipient clarify (the mock drops a message step with no
 recipients before a plan forms, so "message someone" doesn't yet reach the

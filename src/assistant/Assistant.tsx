@@ -173,14 +173,19 @@ export function Assistant() {
     // is pure slot-filling over the plan we already have.
     if (pending) {
       const step = pending.plan.steps[pending.stepIndex];
+      const before = step.payload ?? {};
       const payload = absorbAnswer(
         step.intent!,
         pending.slot,
         message,
         ctx,
         step.ids ?? [],
-        step.payload ?? {},
+        before,
       );
+      // A resolver that couldn't make sense of the answer returns the payload
+      // unchanged (same ref) — so we acknowledge instead of silently re-asking
+      // the identical question, which reads as "nothing happened".
+      const unresolved = payload === before;
       const updated: Plan = {
         ...pending.plan,
         steps: pending.plan.steps.map((s, i) =>
@@ -189,7 +194,11 @@ export function Assistant() {
       };
       const gap = firstPlanGap(updated, ctx, message);
       if (gap) {
-        say(gap.slot.prompt);
+        say(
+          unresolved && gap.slot.key === pending.slot.key
+            ? `I didn't catch that. ${gap.slot.prompt}`
+            : gap.slot.prompt,
+        );
         setPending({ ...pending, plan: updated, stepIndex: gap.stepIndex, slot: gap.slot });
         return;
       }
@@ -314,13 +323,19 @@ export function Assistant() {
       )}
 
       {/* The invoked surface: glow bar first, response card once a reply
-          exists. Tapping anywhere outside dismisses (no chrome, per design). */}
+          exists. Tapping anywhere outside dismisses (no chrome, per design) —
+          EXCEPT while a clarification is pending: the assistant asked a
+          question and is waiting on the answer, so an outside tap must not
+          silently discard the half-built plan (that would strand the answer as
+          a fresh request in a new thread). Answer it, or switch POV to abandon. */}
       {surface.mounted && (
         <OverlayLayer>
           <div className="absolute inset-0 z-30 flex flex-col justify-end">
             <button
               aria-label="Close assistant"
-              onClick={control.close}
+              onClick={() => {
+                if (!pending) control.close();
+              }}
               className={`absolute inset-0 cursor-default ${
                 surface.closing ? 'animate-fade-out' : 'animate-fade-in'
               }`}
