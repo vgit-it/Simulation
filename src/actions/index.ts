@@ -60,6 +60,7 @@ export {
   absorbAnswer,
   firstPlanGap,
   missingSlots,
+  resolvePlanSlots,
   type Slot,
   type SlotResolver,
 } from './requirements';

@@ -3,6 +3,7 @@ import {
   absorbAnswer,
   firstPlanGap,
   propose,
+  resolvePlanSlots,
   type Proposal,
   type Slot,
 } from '../actions';
@@ -186,12 +187,16 @@ export function Assistant() {
       // unchanged (same ref) — so we acknowledge instead of silently re-asking
       // the identical question, which reads as "nothing happened".
       const unresolved = payload === before;
-      const updated: Plan = {
+      const withAnswer: Plan = {
         ...pending.plan,
         steps: pending.plan.steps.map((s, i) =>
           i === pending.stepIndex ? { ...s, payload } : s,
         ),
       };
+      // Re-bind any other slot a decider left unresolved (e.g. a photo operand
+      // an LLM step trusted "the selection already covers") before re-checking
+      // for gaps — the same pass a fresh reply gets below.
+      const updated = resolvePlanSlots(withAnswer, ctx, message);
       const gap = firstPlanGap(updated, ctx, message);
       if (gap) {
         say(
@@ -243,21 +248,27 @@ export function Assistant() {
 
     setThinking(false);
 
+    // Bind whatever's resolvable from the live situation FIRST — a decider
+    // (an LLM especially) may leave a step's operand ids empty when it treats
+    // them as "already covered by the selection" rather than restating them.
+    // Only what's left genuinely unresolved becomes a question.
+    const resolvedPlan = reply.plan ? resolvePlanSlots(reply.plan, ctx, message) : null;
+
     // Requirement gate: a plan whose action step is missing a required input
     // becomes a targeted question instead of a preview. The user's next turn
     // answers it (the clarification branch above).
-    const gap = reply.plan ? firstPlanGap(reply.plan, ctx, message) : null;
+    const gap = resolvedPlan ? firstPlanGap(resolvedPlan, ctx, message) : null;
     say(gap ? gap.slot.prompt : reply.text);
     if (reply.llmRequest) setLastRequest(reply.llmRequest);
     if (gap) {
       setPending({
-        plan: reply.plan!,
+        plan: resolvedPlan!,
         stepIndex: gap.stepIndex,
         slot: gap.slot,
         request: message,
       });
-    } else if (reply.plan) {
-      proposePlan(reply.plan, at, person);
+    } else if (resolvedPlan) {
+      proposePlan(resolvedPlan, at, person);
     }
   }
 
