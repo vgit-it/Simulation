@@ -107,6 +107,52 @@ unified model they fold into.
   in a `valueKind` picker. The medium-confidence "confirm" and low-confidence
   "pick" are the **same UI** — one just opens pre-filled.
 
+## Stakes — the consent gate
+
+- **Stakes is a third dimension**, orthogonal to confidence and supervision:
+  - **Confidence** — am I sure *what* to do (the inputs)? → governs whether to
+    **elicit**.
+  - **Stakes** — how bad if I'm wrong / how hard to undo (the *effect*)? →
+    governs whether the **commit** needs **consent**.
+  - **Supervision** — how closely the user chose to watch → the run's default
+    friction.
+- **The stakes boundary is `propose → commit`** (`src/actions/`): drafting a
+  proposal (writing the message, building the cart) is always free; the
+  **commit** is the consequential act. A high-stakes task is one whose *commit*
+  requires consent.
+- **Binary for now:** `low | high`. High-stakes commits pass through a **consent
+  gate**; low-stakes commits don't.
+- **Explicitly declared for now** (in the action's world file, like any other
+  capability property), but the declaration *stands in for* a judgment about
+  **reversibility** and **cost of reversal** — the effort + cognition to undo it:
+  - *low*: reversible cheaply/automatically (save a draft, add to cart → remove,
+    create a reminder).
+  - *high*: irreversible or expensive to reverse (send a message — no unsend;
+    make a purchase — money moved + refund friction; delete).
+- **Stakes sets a floor supervision can't lower:** even in `auto` ("just do it"),
+  a high-stakes commit still stops for consent. This joins a family of
+  **non-waivable commit gates** — *autonomy never overrides* any of them:
+  1. **Validity gate** — invalid proposal (`invalidReason`, `capabilities.ts`).
+     *(exists)*
+  2. **Input gate** — a required input missing / below the confidence threshold →
+     elicit. *(designed)*
+  3. **Consent gate** — high-stakes effect → confirm. *(new)*
+- **The gates compose, input before consent:** resolve *what* (elicit uncertain
+  inputs), then consent to *whether*. The consent prompt always shows the
+  **final, concrete** act — "Send to Sam: 'see you at 6'? — Send / Cancel" —
+  never a placeholder.
+- **Consent is per-action for now.** A later expansion: **scoped grants** —
+  consent pre-granted with a scope (this session, purchases under $X, always to
+  Sam) that deliberately lowers the floor, distinct from the supervision dial
+  which can never touch it (see Open threads).
+- **Context can escalate a declared baseline** (parallel to computed confidence):
+  blast radius (recipient count), amount. Deterministic in the mock.
+- **Determinism / mock:** the stakes level + any escalation is a pure function of
+  the action + operands; the consent gate is UI, so the offline path is unchanged.
+- **Research telemetry:** stakes and each consent decision (granted/denied,
+  latency) are first-class log events — the trust dynamic the prototype is built
+  to study.
+
 ## Composition — authored + brain, one interpreter
 
 - **Reusable simple tasks + common recipes are authored as content**
@@ -134,8 +180,9 @@ unified model they fold into.
 - **One pipeline** — every task effect still goes through `propose → commit`.
 - **Modular & additive** — new task / value-kind / picker = drop a file + a
   registry line.
-- **Validate loudly** — task defs and their input/kind references are
-  schema-checked and joined at load, like the capability registry.
+- **Validate loudly** — task defs, their input/kind references, and a declared
+  `stakes` level are schema-checked and joined at load, like the capability
+  registry.
 
 ## Open threads (expand as the system grows)
 
@@ -149,3 +196,9 @@ unified model they fold into.
   log) and how it's traced for research instrumentation.
 - **Value kinds** — the initial set of pickers (contact, photo-set, date, choice,
   text) and their parsers.
+- **Scoped consent grants** — expand per-action consent to grants with a scope
+  (session / amount threshold / per-recipient) that deliberately lower the stakes
+  floor; logged as telemetry.
+- **Derived stakes** — compute a task's stakes from its reversibility / cost of
+  reversal (does a cheap compensating/undo task exist?), instead of an explicit
+  declaration.
