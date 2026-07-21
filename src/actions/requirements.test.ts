@@ -5,7 +5,11 @@ import type { Plan } from '../plans/types';
 import { capabilityFor } from './capabilities';
 import {
   absorbAnswer,
+  acceptGap,
+  bandFor,
+  candidate,
   firstPlanGap,
+  meetsThreshold,
   missingSlots,
   resolvePlanSlots,
 } from './requirements';
@@ -26,8 +30,18 @@ const titleSlot = capabilityFor('create-reminder').slots.find(
   (s) => s.key === 'title',
 )!;
 
-describe('missingSlots (share-photos recipients)', () => {
-  it('is satisfied when the request names a contact', () => {
+/** One-step share plans used across the gap/band tests. */
+const shareStep = (ids: string[], payload?: Record<string, unknown>) => ({
+  id: 'share',
+  app: 'photos',
+  intent: 'share-photos',
+  ids,
+  ...(payload && { payload }),
+  description: 'Share it',
+});
+
+describe('missingSlots (share-photos recipients) — banded at the default threshold', () => {
+  it('binds silently (not missing) when the request names a contact — high', () => {
     // img-003 is tagged with leo-park + sam-ruiz; "share with Leo" names one.
     const missing = missingSlots(
       'share-photos',
@@ -39,19 +53,20 @@ describe('missingSlots (share-photos recipients)', () => {
     expect(missing.map((s) => s.key)).not.toContain('recipients');
   });
 
-  it('is satisfied by the draftShare default when the photo has other people', () => {
-    // No name in the request, but img-003 has taggable recipients to default to.
+  it('NEEDS confirmation (missing) for the "everyone tagged" default — medium', () => {
+    // No name in the request; img-003's tags give a default, but at the
+    // confirm-once threshold a medium default is confirmed, not silently sent.
     const missing = missingSlots('share-photos', ctx, ['img-003'], {}, 'share this');
-    expect(missing.map((s) => s.key)).not.toContain('recipients');
+    expect(missing.map((s) => s.key)).toContain('recipients');
   });
 
-  it('is MISSING when there is no one to default to and no name', () => {
+  it('is ELICITED (missing) when there is no one to default to and no name', () => {
     // img-004 is a solo photo (only ava-chen) — nobody to draft as recipient.
     const missing = missingSlots('share-photos', ctx, ['img-004'], {}, 'share this');
     expect(missing.map((s) => s.key)).toEqual(['recipients']);
   });
 
-  it('is satisfied by an explicit payload override', () => {
+  it('binds silently (not missing) for an explicit payload override — high', () => {
     const missing = missingSlots(
       'share-photos',
       ctx,
@@ -60,6 +75,48 @@ describe('missingSlots (share-photos recipients)', () => {
       'share this',
     );
     expect(missing).toHaveLength(0);
+  });
+
+  it('binds the medium default silently under `auto` supervision (low threshold)', () => {
+    const missing = missingSlots(
+      'share-photos',
+      ctx,
+      ['img-003'],
+      {},
+      'share this',
+      'auto',
+    );
+    expect(missing.map((s) => s.key)).not.toContain('recipients');
+  });
+});
+
+describe('meetsThreshold (supervision = confidence threshold)', () => {
+  it('auto acts on medium guesses', () => {
+    expect(meetsThreshold('medium', 'auto')).toBe(true);
+    expect(meetsThreshold('high', 'auto')).toBe(true);
+  });
+  it('confirm-once binds high but confirms medium', () => {
+    expect(meetsThreshold('high', 'confirm-once')).toBe(true);
+    expect(meetsThreshold('medium', 'confirm-once')).toBe(false);
+  });
+  it('confirm-each confirms even a high guess', () => {
+    expect(meetsThreshold('high', 'confirm-each')).toBe(false);
+  });
+});
+
+describe('bandFor (ok / confirm / elicit)', () => {
+  it('a high candidate binds (ok) at confirm-once', () => {
+    expect(bandFor(recipientsSlot, candidate(['sam-ruiz'], 'high', 'request'), 'confirm-once')).toBe('ok');
+  });
+  it('a medium candidate confirms at confirm-once', () => {
+    expect(bandFor(recipientsSlot, candidate(['sam-ruiz'], 'medium', 'default'), 'confirm-once')).toBe('confirm');
+  });
+  it('no candidate elicits', () => {
+    expect(bandFor(recipientsSlot, null, 'confirm-once')).toBe('elicit');
+  });
+  it('an optional slot is always ok', () => {
+    const optional = { ...recipientsSlot, optional: true };
+    expect(bandFor(optional, null, 'confirm-each')).toBe('ok');
   });
 });
 
@@ -136,37 +193,31 @@ describe('absorbAnswer (fold a free-text answer into a slot)', () => {
   });
 });
 
-describe('resolvePlanSlots (bind resolvable values onto a plan before it previews)', () => {
-  // The reported bug's exact shape: a decider (e.g. Gemini) produces a
-  // share-photos step with EMPTY ids, trusting the tool description's "already
-  // satisfied by the user selection" wording rather than restating them.
-  const emptyIdsShare = {
-    id: 'share',
-    app: 'photos',
-    intent: 'share-photos',
-    ids: [] as string[],
-    description: 'Share it',
-  };
-
-  it('binds the live selection into an empty-ids selection slot', () => {
-    const plan: Plan = { id: 'p', goal: 'Share', steps: [emptyIdsShare] };
+describe('resolvePlanSlots (bind only HIGH-confidence values before preview)', () => {
+  it('binds the live selection into an empty-ids selection slot (high)', () => {
+    const plan: Plan = { id: 'p', goal: 'Share', steps: [shareStep([])] };
     const resolved = resolvePlanSlots(plan, ctxWithPhotosSelected, 'share this');
     expect(resolved.steps[0].ids).toEqual(['img-001']);
-    // ...and once bound, there's no longer a gap to ask about.
-    expect(firstPlanGap(resolved, ctxWithPhotosSelected, 'share this')).toBeNull();
   });
 
-  it('also derives recipients once ids are bound (img-001 is tagged with sam-ruiz)', () => {
-    const plan: Plan = { id: 'p', goal: 'Share', steps: [emptyIdsShare] };
+  it('does NOT silently bind the medium "everyone tagged" default', () => {
+    // img-001 is tagged with sam-ruiz — a medium default. It must stay a
+    // confirm gap, not get bound onto the plan and committed unseen.
+    const plan: Plan = { id: 'p', goal: 'Share', steps: [shareStep([])] };
     const resolved = resolvePlanSlots(plan, ctxWithPhotosSelected, 'share this');
-    expect(resolved.steps[0].payload).toEqual({ recipients: ['sam-ruiz'] });
+    expect(resolved.steps[0].payload?.recipients).toBeUndefined();
+    // ...and that leaves a confirm gap for the recipients.
+    const gap = firstPlanGap(resolved, ctxWithPhotosSelected, 'share this');
+    expect(gap?.slot.key).toBe('recipients');
+    expect(gap?.band).toBe('confirm');
+    expect(gap?.candidate?.value).toEqual(['sam-ruiz']);
   });
 
   it('is a no-op (same plan reference) when nothing needs binding', () => {
     const plan: Plan = {
       id: 'p',
       goal: 'Share',
-      steps: [{ ...emptyIdsShare, ids: ['img-001'], payload: { recipients: ['sam-ruiz'] } }],
+      steps: [shareStep(['img-001'], { recipients: ['sam-ruiz'] })],
     };
     expect(resolvePlanSlots(plan, ctx, 'share this')).toBe(plan);
   });
@@ -175,7 +226,7 @@ describe('resolvePlanSlots (bind resolvable values onto a plan before it preview
     const plan: Plan = {
       id: 'p',
       goal: 'Share',
-      steps: [{ ...emptyIdsShare, ids: ['img-004'], payload: { recipients: ['leo-park'] } }],
+      steps: [shareStep(['img-004'], { recipients: ['leo-park'] })],
     };
     // ctxWithPhotosSelected has a DIFFERENT selection (img-001) — must not win
     // over the step's own explicit ids/payload.
@@ -194,7 +245,34 @@ describe('resolvePlanSlots (bind resolvable values onto a plan before it preview
   });
 });
 
-describe('firstPlanGap (where a plan needs an answer before it runs)', () => {
+describe('acceptGap (accept a confirm gap\'s pre-filled candidate)', () => {
+  it('binds a payload candidate so the slot no longer gaps', () => {
+    const plan: Plan = { id: 'p', goal: 'Share', steps: [shareStep(['img-003'])] };
+    const gap = firstPlanGap(plan, ctx, 'share this')!;
+    expect(gap.band).toBe('confirm');
+    const accepted = acceptGap(plan, gap);
+    expect(accepted.steps[0].payload?.recipients).toEqual(gap.candidate!.value);
+    // Once accepted the recipients read as an explicit (high) input — no gap.
+    const next = firstPlanGap(accepted, ctx, 'share this');
+    expect(next).toBeNull();
+  });
+
+  it('binds a selection candidate onto the step ids', () => {
+    const plan: Plan = { id: 'p', goal: 'Share', steps: [shareStep([])] };
+    // The photos operand resolves to the live selection at high confidence, so
+    // it never confirms — but acceptGap must still bind a selection candidate.
+    const gap = {
+      stepIndex: 0,
+      slot: capabilityFor('share-photos').slots.find((s) => s.source === 'selection')!,
+      candidate: candidate(['img-009'], 'medium', 'selection'),
+      band: 'confirm' as const,
+    };
+    const accepted = acceptGap(plan, gap);
+    expect(accepted.steps[0].ids).toEqual(['img-009']);
+  });
+});
+
+describe('firstPlanGap (where a plan needs the user before it runs)', () => {
   const remindStep = {
     id: 'remind',
     app: 'reminders',
@@ -204,11 +282,13 @@ describe('firstPlanGap (where a plan needs an answer before it runs)', () => {
     description: 'Add a reminder',
   };
 
-  it('finds the first action step with a missing required slot', () => {
+  it('finds the first action step with a slot that cannot bind silently', () => {
     const plan: Plan = { id: 'p', goal: 'Remind', steps: [remindStep] };
     const gap = firstPlanGap(plan, ctx, 'remind me');
     expect(gap?.stepIndex).toBe(0);
     expect(gap?.slot.key).toBe('title');
+    expect(gap?.band).toBe('elicit');
+    expect(gap?.candidate).toBeNull();
   });
 
   it('returns null once every step is fully specified', () => {

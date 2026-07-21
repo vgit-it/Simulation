@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   absorbAnswer,
+  acceptGap,
   firstPlanGap,
   propose,
   resolvePlanSlots,
+  type PlanGap,
   type Proposal,
-  type Slot,
 } from '../actions';
+import { resolvePerson } from '../world';
 import { ProposalSheet } from '../actions/ProposalSheet';
 import { assembleContext } from '../context';
 import {
@@ -52,14 +54,14 @@ export function Assistant() {
   const open = control.sessionId !== null;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
-  // A plan waiting on a missing input: the assistant asked `slot.prompt` and
-  // the user's next turn answers it (slot-filling). Cleared once the plan is
-  // fully specified (→ preview) or the conversation resets.
+  // A plan waiting on a slot the assistant can't bind silently: either a
+  // `confirm` gap (a pre-filled candidate shown as a one-tap chip) or an
+  // `elicit` gap (asked outright, answered by the next turn). Cleared once the
+  // plan is fully specified (→ preview) or the conversation resets.
   const [pending, setPending] = useState<{
     plan: Plan;
-    stepIndex: number;
-    slot: Slot;
     request: string;
+    gap: PlanGap;
   } | null>(null);
   const [chatInput, setChatInput] = useState('');
   // The dry-run brain's assembled API payload (shown instead of an answer).
@@ -138,6 +140,49 @@ export function Assistant() {
     control.close();
   }
 
+  /** Dispatch an assistant chat turn into the open thread (sim-clocked). */
+  function assistantSay(text: string) {
+    const thread = control.sessionId;
+    if (thread === null) return;
+    dispatch({
+      type: 'ChatMessage',
+      at: state.clock,
+      person: session.personId,
+      role: 'assistant',
+      text,
+      session: thread,
+    });
+  }
+
+  /** Render a gap's pre-filled candidate for the confirm chip (ids → names). */
+  function describeCandidate(gap: PlanGap): string {
+    const v = gap.candidate?.value;
+    if (Array.isArray(v)) {
+      return v.map((id) => resolvePerson(session.personId, String(id)).name).join(', ');
+    }
+    return String(v ?? '');
+  }
+
+  /**
+   * Accept a confirm gap's pre-filled candidate (the user tapped the chip
+   * instead of typing an override): bind it, then either ask the next gap or
+   * preview the now-complete plan. Pure slot-filling — no brain call.
+   */
+  function acceptCandidate() {
+    if (!pending || pending.gap.band !== 'confirm') return;
+    const ctx = assembleContext(session, state, {});
+    const accepted = acceptGap(pending.plan, pending.gap);
+    const resolved = resolvePlanSlots(accepted, ctx, pending.request);
+    const gap = firstPlanGap(resolved, ctx, pending.request);
+    if (gap) {
+      assistantSay(gap.slot.prompt);
+      setPending({ plan: resolved, request: pending.request, gap });
+      return;
+    }
+    setPending(null);
+    proposePlan(resolved, state.clock, session.personId);
+  }
+
   async function onChatSubmit(e: FormEvent) {
     e.preventDefault();
     const message = chatInput.trim();
@@ -158,26 +203,18 @@ export function Assistant() {
     });
     setChatInput('');
 
-    const say = (text: string) =>
-      dispatch({
-        type: 'ChatMessage',
-        at,
-        person,
-        role: 'assistant',
-        text,
-        session: thread,
-      });
-
-    // Clarification branch: this turn answers the assistant's pending question.
-    // Fold the answer into the step's payload, then either ask for the next
-    // missing input or preview the now-complete plan. No brain call — the loop
-    // is pure slot-filling over the plan we already have.
+    // Clarification branch: this turn answers the assistant's pending question
+    // (a confirm the user overrode by typing, or an outright elicit). Fold the
+    // answer into the step's payload, then either ask the next gap or preview
+    // the now-complete plan. No brain call — pure slot-filling over the plan we
+    // already have.
     if (pending) {
-      const step = pending.plan.steps[pending.stepIndex];
+      const { gap } = pending;
+      const step = pending.plan.steps[gap.stepIndex];
       const before = step.payload ?? {};
       const payload = absorbAnswer(
         step.intent!,
-        pending.slot,
+        gap.slot,
         message,
         ctx,
         step.ids ?? [],
@@ -190,24 +227,24 @@ export function Assistant() {
       const withAnswer: Plan = {
         ...pending.plan,
         steps: pending.plan.steps.map((s, i) =>
-          i === pending.stepIndex ? { ...s, payload } : s,
+          i === gap.stepIndex ? { ...s, payload } : s,
         ),
       };
       // Re-bind any other slot a decider left unresolved (e.g. a photo operand
       // an LLM step trusted "the selection already covers") before re-checking
       // for gaps — the same pass a fresh reply gets below.
       const updated = resolvePlanSlots(withAnswer, ctx, message);
-      const gap = firstPlanGap(updated, ctx, message);
-      if (gap) {
-        say(
-          unresolved && gap.slot.key === pending.slot.key
-            ? `I didn't catch that. ${gap.slot.prompt}`
-            : gap.slot.prompt,
+      const nextGap = firstPlanGap(updated, ctx, message);
+      if (nextGap) {
+        assistantSay(
+          unresolved && nextGap.slot.key === gap.slot.key
+            ? `I didn't catch that. ${nextGap.slot.prompt}`
+            : nextGap.slot.prompt,
         );
-        setPending({ ...pending, plan: updated, stepIndex: gap.stepIndex, slot: gap.slot });
+        setPending({ plan: updated, request: pending.request, gap: nextGap });
         return;
       }
-      say("Got it — here's the plan.");
+      assistantSay("Got it — here's the plan.");
       setPending(null);
       proposePlan(updated, at, person);
       return;
@@ -254,19 +291,15 @@ export function Assistant() {
     // Only what's left genuinely unresolved becomes a question.
     const resolvedPlan = reply.plan ? resolvePlanSlots(reply.plan, ctx, message) : null;
 
-    // Requirement gate: a plan whose action step is missing a required input
-    // becomes a targeted question instead of a preview. The user's next turn
-    // answers it (the clarification branch above).
+    // Requirement gate: a plan whose action step can't bind an input silently
+    // becomes a targeted prompt instead of a preview — a `confirm` (pre-filled
+    // chip) or an `elicit` (open question). The user's next tap/turn resolves
+    // it (the clarification branch above / acceptCandidate).
     const gap = resolvedPlan ? firstPlanGap(resolvedPlan, ctx, message) : null;
-    say(gap ? gap.slot.prompt : reply.text);
+    assistantSay(gap ? gap.slot.prompt : reply.text);
     if (reply.llmRequest) setLastRequest(reply.llmRequest);
     if (gap) {
-      setPending({
-        plan: resolvedPlan!,
-        stepIndex: gap.stepIndex,
-        slot: gap.slot,
-        request: message,
-      });
+      setPending({ plan: resolvedPlan!, request: message, gap });
     } else if (resolvedPlan) {
       proposePlan(resolvedPlan, at, person);
     }
@@ -291,17 +324,32 @@ export function Assistant() {
     setPreviewPlan(null);
   }
 
-  // Shared by both surface states: the hint pill + the ask row.
+  // A pending confirm gap shows its pre-filled candidate as a one-tap chip (the
+  // medium band). An elicit gap shows no chip — just the open question + input.
+  const pendingConfirm =
+    pending && pending.gap.band === 'confirm' && pending.gap.candidate
+      ? pending.gap
+      : null;
+
+  // Shared by both surface states: the top chip (confirm candidate, else the
+  // hint suggestion) + the ask row.
   const askControls = (
     <>
-      {hint && (
+      {pendingConfirm ? (
+        <button
+          onClick={acceptCandidate}
+          className="type-body-sm mb-space-md w-fit animate-rise rounded-ds-full bg-accent/85 px-space-lg py-2 text-left text-white ring-1 ring-white/20 backdrop-blur transition duration-150 active:scale-95"
+        >
+          ✓ {describeCandidate(pendingConfirm)}
+        </button>
+      ) : hint && !pending ? (
         <button
           onClick={() => onSuggestion(hint)}
           className="type-body-sm mb-space-md w-fit animate-rise rounded-ds-full bg-surface/80 px-space-lg py-2 text-left text-text ring-1 ring-text/10 backdrop-blur transition duration-150 active:scale-95"
         >
           {hint.title}
         </button>
-      )}
+      ) : null}
       <form onSubmit={onChatSubmit} className="flex items-center gap-space-sm">
         <input
           ref={inputRef}

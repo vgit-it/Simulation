@@ -9,7 +9,7 @@ import {
   type SelectionSpec,
 } from '../world';
 import type { Proposal } from './index';
-import type { Slot, SlotResolver } from './requirements';
+import type { Candidate, Slot, SlotResolver } from './requirements';
 
 /**
  * The capability registry: the machine-readable catalog of everything the
@@ -224,31 +224,39 @@ const implementations: Record<
 
 /**
  * Slot value resolvers for slots that have a smart default — so the assistant
- * only asks the user when a value genuinely can't be inferred. Recipients for a
- * share come from (in order) an explicit payload, a person named in the request
- * text, or "everyone tagged in the photo"; only when all three are empty is the
- * slot missing. Slots not listed here fall back to the generic presence check.
+ * only asks the user when a value genuinely can't be inferred. Each rung stamps
+ * a CONFIDENCE: recipients for a share come from (in order) an explicit payload
+ * (`high`), a person named in the request text (`high`), or "everyone tagged in
+ * the photo" (`medium` — a sensible default, but one worth confirming, not
+ * silently sending to); only when all three are empty is the slot elicited.
+ * Slots not listed here fall back to the generic presence check.
  */
 const shareResolvers: Record<string, SlotResolver> = {
-  recipients: (ctx, ids, payload, request) => {
+  recipients: (ctx, ids, payload, request): Candidate | null => {
     if (Array.isArray(payload.recipients) && payload.recipients.length) {
-      return payload.recipients;
+      return { value: payload.recipients, confidence: 'high', source: 'payload' };
     }
     const named = requestedShareRecipients(ctx, request, ctx.owner.id);
-    if (named) return named.map((r) => r.id);
+    if (named) {
+      return { value: named.map((r) => r.id), confidence: 'high', source: 'request' };
+    }
     const photos = ctx.owner.gallery.filter((p) => ids.includes(p.id));
     const drafted = ctx.brain.draftShare(photos).recipients;
-    return drafted.length ? drafted.map((r) => r.id) : null;
+    return drafted.length
+      ? { value: drafted.map((r) => r.id), confidence: 'medium', source: 'default' }
+      : null;
   },
 };
 
 const messageResolvers: Record<string, SlotResolver> = {
   // The recipients ARE the operand ids; if none are bound, try a name in the
   // request text before giving up and asking who to message.
-  people: (ctx, ids, _payload, request) => {
-    if (ids.length) return ids;
+  people: (ctx, ids, _payload, request): Candidate | null => {
+    if (ids.length) return { value: ids, confidence: 'high', source: 'selection' };
     const named = requestedShareRecipients(ctx, request, ctx.owner.id);
-    return named ? named.map((r) => r.id) : null;
+    return named
+      ? { value: named.map((r) => r.id), confidence: 'high', source: 'request' }
+      : null;
   },
 };
 

@@ -146,4 +146,9 @@ subpath and can be opened on a real phone.
 - **M5** ✅ Real LLM provider (Gemini) behind the intelligence interface —
   now the project's primary target; the mock remains the offline/test
   fallback.
+- **Task System (in stages, pre-M6)** 🚧 Implementing
+  [`TASK_SYSTEM.md`](./TASK_SYSTEM.md). **Stage 1** ✅ confidence-ranked input
+  resolution — the assistant confirms a low-confidence guess (a pre-filled
+  "Share with …?" chip) instead of silently acting, binds a confident one, and
+  asks outright when it has nothing to go on.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

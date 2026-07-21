@@ -4,9 +4,12 @@
 > **living doc** — expand it as the system's complexity grows. Keep `CLAUDE.md`
 > and `README.md` *pointing here*; do not duplicate the model in them.
 
-**Status:** design / concept — not yet implemented. The engine today has
-*precursors* (capabilities, plans, slot-filling, scenarios); this doc defines the
-unified model they fold into.
+**Status:** design / concept, now **landing in stages**. **Stage 1 —
+confidence-ranked input resolution + the medium confirm band — is implemented**
+(`src/actions/requirements.ts`, surfaced in `src/assistant/Assistant.tsx`); the
+rest below (elicit pickers, the task stack, stakes, LLM-cost caching) are still
+design. The engine's other precursors (capabilities, plans, scenarios) fold into
+the unified model as the remaining stages land.
 
 ## Why this exists
 
@@ -76,6 +79,14 @@ unified model they fold into.
   — which also closes a latent *auto-send-to-all* bug under `auto` supervision.
 - **Determinism:** the mock's confidences are deterministic heuristics; the LLM
   brain emits its own confidence per resolved value.
+- **✅ Implemented** (`src/actions/requirements.ts`): a `SlotResolver` returns a
+  `Candidate { value, confidence, source }`; `bandFor` lands each slot in
+  **ok / confirm / elicit**; `resolvePlanSlots` binds only `high` (so a `medium`
+  default is confirmed pre-filled, never silently sent — closing the latent
+  auto-send-to-all); `firstPlanGap` carries the `{ candidate, band }`, and
+  `acceptGap` folds a tapped confirm back onto the step. The medium band renders
+  as a one-tap `✓ …` confirm chip in the ambient surface; low → asks outright;
+  high → binds silently.
 
 ## Confidence threshold = the supervision dial
 
@@ -86,6 +97,10 @@ unified model they fold into.
   - `confirm-each` → **high** (even confident guesses get a confirm).
 - I.e. **supervision level = how confident an inference must be before the task
   stops asking.**
+- **✅ Implemented**: `meetsThreshold(confidence, supervision)`. The pre-preview
+  clarify pass uses a fixed `DEFAULT_SUPERVISION` (`confirm-once`) since
+  supervision is picked later at the PlanSheet; unifying the two into one dial
+  (pick supervision *before* clarify) is an open thread.
 
 ## Elicit tasks — one question, two answer channels
 
