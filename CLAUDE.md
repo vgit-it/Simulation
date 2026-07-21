@@ -42,6 +42,29 @@ devices, run scenarios across them, and let a user drive one person's phone as
 an interactive prototype (with the rest of the simulated world as their
 contacts, photos, etc.).
 
+## Development focus: build for Gemini, not the mock
+
+**The Gemini (API) brain is the primary, canonical mode this project is built
+for.** New features, prompts, tool/capability descriptions, and UX decisions
+should be designed and verified against **Gemini** (Settings ▸ Brain ▸ gemini)
+first — not the mock and not the llm-dry-run inspector. Concretely:
+
+- When wording a capability's tool description, a slot's prompt, or the system
+  prompt (`src/intelligence/llm/prompt.ts`), write for what a real model needs
+  to get right, not just what the mock's keyword matching needs.
+- Verify new assistant/plan features by driving them with Gemini configured
+  (Settings ▸ Brain, a bring-your-own key), not only the mock's deterministic
+  path — the mock can look correct while a real model behaves differently (the
+  recipient- and photo-selection-binding bugs were both invisible on the mock
+  and only surfaced once the real model produced the plan).
+- The **mock brain stays the code DEFAULT and must keep working fully
+  offline, token-free, with zero setup** (principle 8) — that guarantee isn't
+  changing. It's the deterministic fallback for a fresh clone, CI, and tests,
+  not the design center: treat it as a secondary mirror kept in sync with
+  Gemini's behavior, not the other way around.
+- `llm-dry-run` remains an inspector (it shows the assembled request, never
+  calls out) — useful for debugging a payload, not a target to design for.
+
 ## Core principles (do not violate)
 
 1. **Content ≠ code.** Growing the world means editing `world/`, never `src/`.
@@ -68,9 +91,13 @@ contacts, photos, etc.).
 7. **Validate loudly.** All authored content is schema-checked (`zod`) and
    cross-references are integrity-checked on load. Malformed content must fail
    with the file path and the exact problem, not silently mis-render.
-8. **No tokens unless asked.** The default provider is `mock`. Do not wire real
-   LLM calls unless the task explicitly calls for it; the mock must always remain
-   a working, offline provider.
+8. **No tokens unless asked, but design for Gemini.** The mock is the code
+   default and must always remain a working, offline, token-free provider — a
+   fresh clone or the deployed site needs no API key. But new feature work
+   should be built and verified against the **Gemini** brain, the project's
+   primary target (see "Development focus" above), not stopped once the mock
+   looks right. Don't wire a new real network call site unless the task
+   calls for it.
 
 ## Tech stack
 
