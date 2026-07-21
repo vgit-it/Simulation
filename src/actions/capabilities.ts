@@ -275,6 +275,7 @@ function slotsFor(action: AppAction): Slot[] {
       prompt: action.selection.prompt ?? `Which ${action.selection.kind}?`,
       source: 'selection',
       min: action.selection.min,
+      valueKind: action.selection.valueKind,
     });
   }
   for (const req of action.requires) {
@@ -283,6 +284,7 @@ function slotsFor(action: AppAction): Slot[] {
       prompt: req.prompt,
       source: 'payload',
       optional: req.optional,
+      valueKind: req.valueKind,
     });
   }
   return slots;

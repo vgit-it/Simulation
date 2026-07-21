@@ -60,6 +60,7 @@ export {
   absorbAnswer,
   acceptGap,
   bandFor,
+  bindGapValue,
   candidate,
   DEFAULT_SUPERVISION,
   firstPlanGap,
@@ -73,6 +74,13 @@ export {
   type SlotBand,
   type SlotResolver,
 } from './requirements';
+
+export {
+  parseSlotAnswer,
+  valueKindParser,
+  type ParseInput,
+  type ValueKindParser,
+} from './valueKinds';
 
 /**
  * Build a proposal for an intent via the capability registry. `ids` are the

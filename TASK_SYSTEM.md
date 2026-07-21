@@ -4,12 +4,13 @@
 > **living doc** — expand it as the system's complexity grows. Keep `CLAUDE.md`
 > and `README.md` *pointing here*; do not duplicate the model in them.
 
-**Status:** design / concept, now **landing in stages**. **Stage 1 —
-confidence-ranked input resolution + the medium confirm band — is implemented**
-(`src/actions/requirements.ts`, surfaced in `src/assistant/Assistant.tsx`); the
-rest below (elicit pickers, the task stack, stakes, LLM-cost caching) are still
-design. The engine's other precursors (capabilities, plans, scenarios) fold into
-the unified model as the remaining stages land.
+**Status:** design / concept, now **landing in stages**. **Stages 1–2 are
+implemented**: confidence-ranked input resolution + the medium confirm band
+(`src/actions/requirements.ts`) and **elicit value-kind pickers + NL parse**
+(`src/actions/valueKinds.ts`, `src/assistant/pickers/`), both surfaced in
+`src/assistant/Assistant.tsx`. The rest below (the task stack, stakes, LLM-cost
+caching) are still design. The engine's other precursors (capabilities, plans,
+scenarios) fold into the unified model as the remaining stages land.
 
 ## Why this exists
 
@@ -121,6 +122,16 @@ the unified model as the remaining stages land.
   **candidate-chip row** (pre-selecting the medium guess), and richer kinds swap
   in a `valueKind` picker. The medium-confidence "confirm" and low-confidence
   "pick" are the **same UI** — one just opens pre-filled.
+- **✅ Implemented**: slots declare a `valueKind` in their world file
+  (`src/world/schema.ts`); a `valueKind → parse` registry
+  (`src/actions/valueKinds.ts`, deterministic — `contact` reuses `matchContacts`,
+  `text` is verbatim) is the NL channel, and a `valueKind → picker` registry
+  (`src/assistant/pickers/` — `ContactPicker` today) is the structured channel.
+  Both produce a `Candidate` bound through one path (`bindGapValue`); a typed
+  answer parsing to several names fans out to a `ChoicePicker` (disambiguation),
+  a one-level re-elicit that becomes fully recursive once the task stack lands.
+  Shipped kinds: **contact** + **choice**; **photo-set**/**date** are declared
+  but fall through to the text input for now.
 
 ## Stakes — the consent gate
 

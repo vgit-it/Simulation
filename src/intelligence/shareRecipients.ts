@@ -26,11 +26,37 @@ export function requestedShareRecipients(
   if (sel?.kind === 'people' && sel.ids.length) {
     return sel.ids.map((id) => resolvePerson(personId, id));
   }
-  const lower = request.toLowerCase();
-  const named = contactsOf(personId).filter(
+  const named = matchContacts(personId, request);
+  return named.length ? named : null;
+}
+
+/**
+ * Resolve free text to the owner's contacts it names — shared by the request
+ * parser above and the `contact` value-kind parser (`src/actions/valueKinds.ts`)
+ * that folds an elicit answer. Two passes:
+ *  - **substring** on the full or first name ("share with Sam Ruiz" / "with
+ *    sam") — the request-text case, unchanged from before.
+ *  - **first-name prefix** when the text is a single bare token ("Sa" → Sam;
+ *    an ambiguous "j" → every J-name, which the assistant disambiguates).
+ * Deterministic; no perception.
+ */
+export function matchContacts(
+  personId: string,
+  text: string,
+): ResolvedPerson[] {
+  const lower = text.toLowerCase().trim();
+  if (!lower) return [];
+  const contacts = contactsOf(personId);
+  const substring = contacts.filter(
     (c) =>
       lower.includes(c.name.toLowerCase()) ||
       lower.includes(c.name.split(' ')[0].toLowerCase()),
   );
-  return named.length ? named : null;
+  if (substring.length) return substring;
+  if (/^[a-z]+$/.test(lower)) {
+    return contacts.filter((c) =>
+      c.name.split(' ')[0].toLowerCase().startsWith(lower),
+    );
+  }
+  return [];
 }

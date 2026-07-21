@@ -12,6 +12,13 @@ export const selectionSpecSchema = z.object({
   min: z.number().int().min(0).default(1),
   /** The question to ask when this operand is missing (slot-filling). */
   prompt: z.string().optional(),
+  /**
+   * The elicit VALUE KIND — what a picker/parser collects for this operand
+   * (contact / photo-set / date / choice / text). Distinct from `kind` above
+   * (the selection TYPE matched against the session selection): a `people`
+   * operand's value kind is `contact`, a `photos` operand's is `photo-set`.
+   */
+  valueKind: z.string().optional(),
 });
 export type SelectionSpec = z.infer<typeof selectionSpecSchema>;
 
@@ -26,6 +33,12 @@ export const slotSpecSchema = z.object({
   key: z.string(),
   prompt: z.string(),
   optional: z.boolean().default(false),
+  /**
+   * The elicit VALUE KIND — what a picker/parser collects for this input
+   * (contact / choice / text / …). Drives the structured picker shown in the
+   * assistant surface and the natural-language parser used on a typed answer.
+   */
+  valueKind: z.string().optional(),
 });
 export type SlotSpec = z.infer<typeof slotSpecSchema>;
 
