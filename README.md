@@ -6,6 +6,14 @@ apps are Markdown definitions, files are placeholders with metadata, and the
 "intelligence" is a pluggable adapter that starts fully mocked (no LLM tokens
 spent) and can be swapped for a real model later.
 
+**Primary mode: Gemini (API).** The assistant's "brain" is a swappable adapter
+— mock, an llm-dry-run inspector, and a real **Gemini**-backed provider
+(Settings ▸ Brain, bring-your-own API key) — but **Gemini is the mode this
+project is built and verified against going forward**, not the other two. The
+mock stays the zero-setup, offline, token-free default so a fresh clone or the
+deployed site works with no key, but treat it as a fallback mirror, not the
+design target — see `CLAUDE.md`'s "Development focus" section.
+
 Through **Milestone 4** it's a multi-person world: six residents with their own
 themed phones and galleries, a **Photos** app, a persistent **assistant**, a
 **Messages** inbox where shares actually arrive, and now scripted **scenarios**
@@ -99,7 +107,9 @@ with the file path and the exact problem.
   derived state is a fold. Reset wipes it back to the seed.
 - **One action pipeline** — `propose → Proposal → commit` serves the assistant
   and (later) scenarios alike.
-- **Adapter boundary** for intelligence — mock now, LLM later, same interface.
+- **Adapter boundary** for intelligence — mock, llm-dry-run, and **Gemini**
+  share one interface; Gemini is the primary target, mock is the offline/test
+  fallback.
 - **Deterministic** — time comes from the store clock, not the wall clock; no
   perception, no tokens.
 
@@ -131,5 +141,7 @@ subpath and can be opened on a real phone.
 - **Assistant chat (pre-M5)** ✅ An open-ended **Ask** box on the assistant
   sheet, backed by a new `respond()` brain method — the exact context/reply
   harness a real model will plug into, still mock/deterministic for now.
-- **M5** Real LLM provider behind the intelligence interface.
+- **M5** ✅ Real LLM provider (Gemini) behind the intelligence interface —
+  now the project's primary target; the mock remains the offline/test
+  fallback.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.
