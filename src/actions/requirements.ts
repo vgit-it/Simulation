@@ -51,9 +51,19 @@ function isFilled(v: unknown): boolean {
 
 /** The fallback when a capability declares no resolver for a slot. */
 function genericResolve(slot: Slot): SlotResolver {
-  return (_ctx, ids, payload) => {
+  return (ctx, ids, payload) => {
     if (slot.source === 'selection') {
-      return ids.length >= (slot.min ?? 1) ? ids : null;
+      if (ids.length >= (slot.min ?? 1)) return ids;
+      // A decider (an LLM especially) may leave a step's own ids empty when it
+      // treats the operand as "already covered by the user's selection" (see
+      // buildTools' requirement text in src/intelligence/llm/prompt.ts) rather
+      // than restating it — fall back to the LIVE selection so the assistant
+      // never asks for something the user has visibly already picked.
+      const sel = ctx.situation.selection;
+      if (sel && sel.kind === slot.key && sel.ids.length >= (slot.min ?? 1)) {
+        return sel.ids;
+      }
+      return null;
     }
     const v = payload[slot.key];
     return isFilled(v) ? v : null;
@@ -101,6 +111,49 @@ export function firstPlanGap(
     if (slot) return { stepIndex: i, slot };
   }
   return null;
+}
+
+/**
+ * Bind whatever slot values ARE resolvable back onto a plan's steps, so a
+ * decider that didn't restate an already-satisfied input (e.g. an LLM step
+ * that left `ids` empty, trusting "the operand is already covered by the
+ * selection") still ends up with a step carrying the right ids/payload before
+ * it's previewed or run. A step's own explicit ids/payload always win — a
+ * resolver only ever returns a value when its own precedence says so (an
+ * explicit payload override, then the request, then a default), so applying
+ * it unconditionally is safe and idempotent for a step that's already correct
+ * (the mock's own plans; this is a no-op for them).
+ */
+export function resolvePlanSlots(
+  plan: Plan,
+  ctx: ContextBundle,
+  request: string,
+): Plan {
+  let planChanged = false;
+  const steps = plan.steps.map((step) => {
+    if (!step.intent) return step;
+    let ids = step.ids ?? [];
+    let payload = step.payload ?? {};
+    let stepChanged = false;
+    for (const slot of capabilityFor(step.intent).slots) {
+      const value = resolverFor(step.intent, slot)(ctx, ids, payload, request);
+      if (value == null) continue;
+      if (slot.source === 'selection') {
+        const resolved = value as string[];
+        if (resolved.length !== ids.length || resolved.some((id, i) => id !== ids[i])) {
+          ids = resolved;
+          stepChanged = true;
+        }
+      } else if (payload[slot.key] !== value) {
+        payload = { ...payload, [slot.key]: value };
+        stepChanged = true;
+      }
+    }
+    if (!stepChanged) return step;
+    planChanged = true;
+    return { ...step, ids, payload };
+  });
+  return planChanged ? { ...plan, steps } : plan;
 }
 
 /**

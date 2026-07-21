@@ -1039,6 +1039,22 @@ photo you need which photo and to whom") called for.
   resolver can't use (a share recipient who isn't a contact) is acknowledged
   ("I didn't catch that. …") instead of silently re-asking the identical
   question. Switching POV still abandons a pending clarification.
+- **The selection operand falls back to the LIVE selection**
+  (`resolvePlanSlots`, `src/actions/requirements.ts`): a decider — an LLM
+  especially — may leave a step's own `ids` empty, since the tool catalog
+  tells it the operand is "already satisfied by the user selection" and
+  needn't be restated. Before this fix, the selection slot's generic resolver
+  only checked the step's OWN `ids`, so an empty-ids step asked "Which photos
+  do you want to share?" even while photos were visibly selected on screen —
+  the fallback `viableCapabilities` already had (checking `ctx.situation.
+  selection`) was never wired into the new slot-resolution path.
+  `resolvePlanSlots(plan, ctx, request)` binds every step's resolvable
+  values — the live selection for an empty operand, a drafted/named recipient
+  for an empty payload slot — onto the plan BEFORE `firstPlanGap` checks for a
+  genuine gap; a step's own explicit ids/payload always win, so this is a
+  no-op for an already-correct (e.g. mock-produced) step. Called both on a
+  fresh reply and after folding an answer into `pending`, so a later step's
+  slots can bind too.
 
 Deferred: message-recipient clarify (the mock drops a message step with no
 recipients before a plan forms, so "message someone" doesn't yet reach the
