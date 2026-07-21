@@ -58,10 +58,19 @@ export {
 
 export {
   absorbAnswer,
+  acceptGap,
+  bandFor,
+  candidate,
+  DEFAULT_SUPERVISION,
   firstPlanGap,
+  meetsThreshold,
   missingSlots,
   resolvePlanSlots,
+  type Candidate,
+  type Confidence,
+  type PlanGap,
   type Slot,
+  type SlotBand,
   type SlotResolver,
 } from './requirements';
 

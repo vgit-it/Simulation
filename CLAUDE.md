@@ -308,15 +308,19 @@ question to ask when it's missing (`recipients` for share, `title` for a
 reminder; a message's `text` is `optional: true` since the brain always drafts
 it). The registry joins these into `capability.slots` and, in code, a per-slot
 `resolver` (`requirementResolvers` in `src/actions/capabilities.ts`) for slots
-with a smart default — e.g. share `recipients` resolve to an explicit payload,
-a name in the request, or "everyone tagged", and only when ALL are empty is
-the slot missing (so a solo photo with no name asked about, a group photo
-defaulted silently). `missingSlots`/`firstPlanGap`/`absorbAnswer`
-(`src/actions/requirements.ts`, pure) are the slot-filling API the assistant
-uses: `firstPlanGap` finds the first action step still short an input,
-`absorbAnswer` folds the user's free-text answer back into that step's payload
-(a name → a person id via the resolver; a title verbatim). Declaration in
-content, resolution in code — the same split as the capability registry.
+with a smart default — each rung stamping a **confidence** (an explicit payload
+or a person named in the request = `high`; the "everyone tagged" default =
+`medium`), returning a `Candidate { value, confidence, source }` or `null`. A
+slot is **elicited** only when nothing resolves; a below-threshold value (the
+medium default) is surfaced as a **one-tap confirm**, not sent silently — see
+Task System Stage 1 below. `missingSlots`/`firstPlanGap`/`absorbAnswer`/
+`acceptGap` (`src/actions/requirements.ts`, pure) are the slot-filling API the
+assistant uses: `firstPlanGap` finds the first action step still short an input
+and returns its `{ candidate, band }` (band = ok/confirm/elicit at the
+supervision threshold), `absorbAnswer` folds a free-text answer back into that
+step's payload (a name → a person id via the resolver; a title verbatim), and
+`acceptGap` folds a tapped confirm. Declaration in content, resolution in code —
+the same split as the capability registry.
 
 **Expose a user selection to the assistant:** apps write what the user has
 picked to the session (`setSelection({ app, kind, ids })`, `src/session`);
@@ -1094,6 +1098,37 @@ loop); refreshing a step's description text after an answer (the recipient
 rides in the payload + shows in the ProposalSheet, but the plan line stays
 generic, e.g. "Share it"); collecting a missing slot inside the ProposalSheet
 for the direct (non-chat) share/manual paths.
+
+### Task System — Stage 1: confidence-ranked input resolution ✅ (current, pre-M5)
+
+The first stage of the unified **Task System** (designed in
+[`TASK_SYSTEM.md`](./TASK_SYSTEM.md)): slot resolution is now confidence-graded,
+not a presence check.
+
+- **Resolvers return a `Candidate { value, confidence, source }`**
+  (`src/actions/requirements.ts`, `capabilities.ts`) — an explicit payload or a
+  person named in the request is `high`; the "everyone tagged in the photo"
+  default drops to `medium`. `meetsThreshold(confidence, supervision)` turns the
+  supervision level into the accept threshold (`auto` acts on medium,
+  `confirm-once` binds high / confirms medium, `confirm-each` confirms even
+  high); `bandFor` lands each slot in **ok / confirm / elicit**.
+- **`resolvePlanSlots` binds only `high` values silently** — a `medium` default
+  is deliberately left as a **confirm gap**, surfaced pre-filled rather than
+  committed unseen (closing the latent *auto-send-to-all* under `auto`/
+  `confirm-once` supervision). `firstPlanGap` carries the `{ candidate, band }`;
+  `acceptGap` folds a tapped confirm onto the step, promoting it to an explicit
+  `high` input.
+- **The medium band is a one-tap confirm chip** in the ambient assistant surface
+  (`src/assistant/Assistant.tsx`): "Who should I share these with?" + a
+  pre-filled `✓ Leo Park, Sam Ruiz, Maya Osei` chip; tap to accept, type to
+  override. Low (no candidate) asks outright as before; high binds silently and
+  goes straight to the PlanSheet.
+
+Deferred to later stages: value-kind elicit pickers + NL parse (Stage 2), a real
+suspend/resume task stack (Stage 3), stakes/consent (Stage 4), LLM-cost caching
+(Stage 5). One open thread: the clarify pass uses a fixed `DEFAULT_SUPERVISION`
+(`confirm-once`) since supervision is picked later at the PlanSheet — unifying
+the two into one dial is future work.
 
 ### M6 — More device shells & richer visuals
 
