@@ -8,6 +8,7 @@ import {
   type RuntimeState,
 } from '../state';
 import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
+import { requestedShareRecipients } from './shareRecipients';
 import type {
   ChatReply,
   ChatTurn,
@@ -216,32 +217,6 @@ class MockPersonIntelligence implements PersonIntelligence {
   }
 
   /**
-   * Who a share step should message, when the request itself names them:
-   * either an explicit people selection (a tapped contact, an open thread) or
-   * a contact name mentioned in the request text (the same lookup `respond()`
-   * uses for "who have I been photographed with"). Returns null when neither
-   * is present, so the caller falls back to `draftShare`'s "everyone tagged in
-   * the photo" default — the request's own recipient is never silently
-   * discarded in favor of that default.
-   */
-  private requestedRecipients(
-    ctx: ContextBundle,
-    request: string,
-  ): ResolvedPerson[] | null {
-    const sel = ctx.situation.selection;
-    if (sel?.kind === 'people' && sel.ids.length) {
-      return sel.ids.map((id) => resolvePerson(this.personId, id));
-    }
-    const lower = request.toLowerCase();
-    const named = contactsOf(this.personId).filter(
-      (c) =>
-        lower.includes(c.name.toLowerCase()) ||
-        lower.includes(c.name.split(' ')[0].toLowerCase()),
-    );
-    return named.length ? named : null;
-  }
-
-  /**
    * Compose a plan from up to three capability families, keyed on the request
    * keywords + the current selection kind:
    *  - share-photos  (photo keywords, or a photos selection)
@@ -277,7 +252,7 @@ class MockPersonIntelligence implements PersonIntelligence {
     if (wantsShare && apps.includes('photos')) {
       sharePhotos = this.requestPhotos(ctx);
       const requested = sharePhotos.length
-        ? this.requestedRecipients(ctx, request)
+        ? requestedShareRecipients(ctx, request, this.personId)
         : null;
       const draft = sharePhotos.length ? this.draftShare(sharePhotos) : null;
       const recipients = requested ?? draft?.recipients ?? [];

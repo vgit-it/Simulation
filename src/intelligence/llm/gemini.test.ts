@@ -8,6 +8,7 @@ import {
   modelChain,
   parseChatReply,
   toGeminiRequest,
+  withRequestedShareRecipients,
 } from './gemini';
 import { GEMINI_FALLBACK_MODELS } from '../../config';
 
@@ -270,5 +271,63 @@ describe('model downgrade fallback', () => {
         'gemini-flash-lite-latest',
       ]),
     ).rejects.toThrow(/Gemini 503/);
+  });
+});
+
+describe('withRequestedShareRecipients (model-plan safety net)', () => {
+  // img-003 (Ava's gallery) is tagged with BOTH leo-park and sam-ruiz — the
+  // exact shape of the reported bug: a model can write a step whose
+  // description names one person while leaving payload.recipients empty,
+  // which would otherwise commit to everyone tagged.
+  const ctx = assembleContext(session, freshState());
+
+  function planReply(payload?: Record<string, unknown>) {
+    return {
+      text: 'Sure, sharing that now.',
+      plan: {
+        id: 'plan_1',
+        goal: 'Share with Leo',
+        steps: [
+          {
+            id: 'share',
+            app: 'photos',
+            description: 'Share it with Leo Park', // the model's own (correct) prose
+            intent: 'share-photos',
+            ids: ['img-003'],
+            ...(payload && { payload }),
+          },
+        ],
+      },
+    };
+  }
+
+  it('narrows a share step the model left unscoped, using the request text', () => {
+    const reply = withRequestedShareRecipients(
+      planReply(),
+      ctx,
+      'share this with Leo',
+    );
+    expect(reply.plan!.steps[0].payload).toEqual({ recipients: ['leo-park'] });
+  });
+
+  it('leaves a step alone when the model already supplied recipients', () => {
+    const reply = withRequestedShareRecipients(
+      planReply({ recipients: ['sam-ruiz'] }),
+      ctx,
+      'share this with Leo', // text says Leo, but the model's own choice wins
+    );
+    expect(reply.plan!.steps[0].payload).toEqual({ recipients: ['sam-ruiz'] });
+  });
+
+  it('leaves a step alone when neither a name nor a selection narrows it', () => {
+    const reply = withRequestedShareRecipients(planReply(), ctx, 'share this');
+    expect(reply.plan!.steps[0].payload).toBeUndefined();
+  });
+
+  it('is a no-op for a reply with no plan', () => {
+    const reply = { text: 'just some prose' };
+    expect(withRequestedShareRecipients(reply, ctx, 'share this with Leo')).toBe(
+      reply,
+    );
   });
 });
