@@ -216,6 +216,32 @@ class MockPersonIntelligence implements PersonIntelligence {
   }
 
   /**
+   * Who a share step should message, when the request itself names them:
+   * either an explicit people selection (a tapped contact, an open thread) or
+   * a contact name mentioned in the request text (the same lookup `respond()`
+   * uses for "who have I been photographed with"). Returns null when neither
+   * is present, so the caller falls back to `draftShare`'s "everyone tagged in
+   * the photo" default — the request's own recipient is never silently
+   * discarded in favor of that default.
+   */
+  private requestedRecipients(
+    ctx: ContextBundle,
+    request: string,
+  ): ResolvedPerson[] | null {
+    const sel = ctx.situation.selection;
+    if (sel?.kind === 'people' && sel.ids.length) {
+      return sel.ids.map((id) => resolvePerson(this.personId, id));
+    }
+    const lower = request.toLowerCase();
+    const named = contactsOf(this.personId).filter(
+      (c) =>
+        lower.includes(c.name.toLowerCase()) ||
+        lower.includes(c.name.split(' ')[0].toLowerCase()),
+    );
+    return named.length ? named : null;
+  }
+
+  /**
    * Compose a plan from up to three capability families, keyed on the request
    * keywords + the current selection kind:
    *  - share-photos  (photo keywords, or a photos selection)
@@ -242,14 +268,21 @@ class MockPersonIntelligence implements PersonIntelligence {
       (!!peopleSelected && !wantsShare);
     const wantsReminder = /remind|forget|to-?do/.test(lower);
 
-    // Share: gather (navigate) + share (action) in Photos.
+    // Share: gather (navigate) + share (action) in Photos. Recipients prefer
+    // what the REQUEST itself names (a people selection, or a name in the
+    // text) over draftShare's "everyone tagged" default — see
+    // requestedRecipients.
     let sharePhotos: Photo[] = [];
     let shareRecipients: ResolvedPerson[] = [];
     if (wantsShare && apps.includes('photos')) {
       sharePhotos = this.requestPhotos(ctx);
+      const requested = sharePhotos.length
+        ? this.requestedRecipients(ctx, request)
+        : null;
       const draft = sharePhotos.length ? this.draftShare(sharePhotos) : null;
-      if (draft?.recipients.length) {
-        shareRecipients = draft.recipients;
+      const recipients = requested ?? draft?.recipients ?? [];
+      if (recipients.length) {
+        shareRecipients = recipients;
         const fromSelection = sel?.kind === 'photos' && sel.ids.length > 0;
         const count = sharePhotos.length;
         const noun = `photo${count === 1 ? '' : 's'}`;
@@ -267,6 +300,9 @@ class MockPersonIntelligence implements PersonIntelligence {
             app: 'photos',
             intent: 'share-photos',
             ids: sharePhotos.map((p) => p.id),
+            ...(requested && {
+              payload: { recipients: requested.map((r) => r.id) },
+            }),
             description: `Share ${count === 1 ? 'it' : 'them'} with ${names}`,
           },
         );
