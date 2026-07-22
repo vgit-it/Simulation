@@ -1,5 +1,6 @@
 import { listCapabilities } from '../../actions';
 import type { ContextBundle } from '../../context';
+import type { Plan } from '../../plans/types';
 import { factsFor, messagesInvolving, plansFor, remindersFor } from '../../state';
 import { contactsOf, resolvePerson } from '../../world';
 import type { ChatTurn } from '../types';
@@ -89,8 +90,16 @@ export function buildTools(ctx: ContextBundle): LLMTool[] {
     });
 }
 
-/** Everything the decider is allowed to know, as a deterministic system prompt. */
-export function buildSystemPrompt(ctx: ContextBundle): string {
+/**
+ * Everything the decider is allowed to know, as a deterministic system
+ * prompt. Passing `revisingPlan` (the PlanSheet's chat-edit seam) appends a
+ * section describing the already-previewed plan under discussion and asks
+ * for the same ChatReply/plan contract back, revised.
+ */
+export function buildSystemPrompt(
+  ctx: ContextBundle,
+  revisingPlan?: Plan,
+): string {
   const { owner, device, state, situation } = ctx;
   const lines: string[] = [];
 
@@ -149,6 +158,22 @@ export function buildSystemPrompt(ctx: ContextBundle): string {
   if (!plans.length) lines.push('- (none)');
   for (const p of plans) lines.push(`- [${p.outcome}] ${p.goal}`);
 
+  if (revisingPlan) {
+    lines.push(
+      '',
+      '## Plan under revision (the user is editing this, not starting fresh)',
+      JSON.stringify(revisingPlan, null, 2),
+      '',
+      "The next message asks for a change to THIS plan, not a new one. Return",
+      'the same ChatReply/plan JSON contract below, revised: preserve the "id"',
+      "of every step you don't change (only a newly-added step needs a new",
+      'id), leave unrelated steps untouched, and make "text" a short',
+      'confirmation of what changed (e.g. "Now sharing with Sam only."). If',
+      "the request doesn't make sense as an edit to this plan, return no plan",
+      'and explain why in "text" instead of guessing.',
+    );
+  }
+
   lines.push(
     '',
     '## How to respond',
@@ -187,5 +212,25 @@ export function buildLLMRequest(
     system: buildSystemPrompt(ctx),
     tools: buildTools(ctx),
     messages: buildMessages(history, message),
+  };
+}
+
+/**
+ * The request for a PlanSheet chat edit: same shape as `buildLLMRequest`, but
+ * the system prompt describes the plan under revision (see `revisingPlan`
+ * above) instead of chat history — a plan edit is a fresh, single-turn ask
+ * ("just Sam", "skip the reminder"), not a continued conversation.
+ */
+export function buildRevisePlanRequest(
+  ctx: ContextBundle,
+  plan: Plan,
+  message: string,
+): LLMRequest {
+  return {
+    model: MODEL,
+    max_tokens: MAX_OUTPUT_TOKENS,
+    system: buildSystemPrompt(ctx, plan),
+    tools: buildTools(ctx),
+    messages: buildMessages([], message),
   };
 }

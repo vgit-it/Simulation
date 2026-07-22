@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assembleContext, type ContextBundle } from '../context';
+import type { Plan, PlanStep } from '../plans/types';
 import { freshState, type RuntimeState } from '../state';
 import { MockIntelligence } from './mock';
 import { sharedPhotoCount, type Photo } from '../world';
@@ -182,5 +183,134 @@ describe('MockIntelligence.respond', () => {
     );
     expect(first.text.startsWith('Hi!')).toBe(true);
     expect(second.text.startsWith('Hi!')).toBe(false);
+  });
+});
+
+describe('MockIntelligence.revisePlan', () => {
+  const ctx = assembleContext(session, freshState(), {});
+
+  const shareStep = (recipients: string[]): PlanStep => ({
+    id: 'share',
+    app: 'photos',
+    intent: 'share-photos',
+    ids: ['img-004'],
+    payload: { recipients },
+    description: `Share it with ${recipients.join(', ')}`,
+  });
+  const messageStep = (recipients: string[]): PlanStep => ({
+    id: 'message',
+    app: 'messages',
+    intent: 'send-message',
+    ids: recipients,
+    payload: { text: 'hi' },
+    description: `Send a message to ${recipients.join(', ')}`,
+  });
+  const reminderStep: PlanStep = {
+    id: 'remind',
+    app: 'reminders',
+    intent: 'create-reminder',
+    ids: [],
+    payload: { title: 'buy milk' },
+    description: 'Add reminder: "buy milk"',
+  };
+  const plan = (steps: PlanStep[]): Plan => ({ id: 'p1', goal: 'Test plan', steps });
+
+  it('replaces a share step\'s recipients ("just Sam")', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park', 'sam-ruiz'])]),
+      'just Sam',
+    );
+    expect(result.plan?.steps[0].payload?.recipients).toEqual(['sam-ruiz']);
+    expect(result.plan?.id).toBe('p1');
+    expect(result.reply).toContain('Sam');
+  });
+
+  it('adds a recipient to a share step', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park'])]),
+      'also add Sam',
+    );
+    expect(result.plan?.steps[0].payload?.recipients).toEqual([
+      'leo-park',
+      'sam-ruiz',
+    ]);
+  });
+
+  it('removes a recipient from a share step', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park', 'sam-ruiz'])]),
+      'remove Leo',
+    );
+    expect(result.plan?.steps[0].payload?.recipients).toEqual(['sam-ruiz']);
+  });
+
+  it('refuses to remove the last recipient', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park'])]),
+      'remove Leo',
+    );
+    expect(result.plan).toBeNull();
+    expect(result.reply).toContain('no one');
+  });
+
+  it("edits a message step's ids (not payload) for recipients", async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([messageStep(['leo-park'])]),
+      'just Sam',
+    );
+    expect(result.plan?.steps[0].ids).toEqual(['sam-ruiz']);
+  });
+
+  it('removes a step by keyword, preserving the remaining step\'s id', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park']), reminderStep]),
+      'skip the reminder',
+    );
+    expect(result.plan?.steps.map((s) => s.id)).toEqual(['share']);
+    expect(result.reply).toContain('Removed');
+  });
+
+  it('refuses to remove the only remaining action step', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([reminderStep]),
+      'skip the reminder',
+    );
+    expect(result.plan).toBeNull();
+  });
+
+  it("changes a reminder's title", async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([reminderStep]),
+      'change the reminder to buy eggs',
+    );
+    expect(result.plan?.steps[0].payload?.title).toBe('buy eggs');
+  });
+
+  it('preserves untouched step ids across an edit', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park']), reminderStep]),
+      'just Sam',
+    );
+    expect(result.plan?.steps[0].id).toBe('share');
+    expect(result.plan?.steps[1].id).toBe('remind');
+  });
+
+  it('gives an honest reply for an unrecognized edit, leaving the plan untouched', async () => {
+    const result = await brain.revisePlan(
+      ctx,
+      plan([shareStep(['leo-park'])]),
+      'make it purple',
+    );
+    expect(result.plan).toBeNull();
+    expect(result.reply).toContain("couldn't apply");
   });
 });

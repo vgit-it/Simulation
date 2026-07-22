@@ -159,5 +159,9 @@ subpath and can be opened on a real phone.
   **Stage 3** ✅ the task-stack interpreter — input resolution runs on a pure
   suspend/resume stack (`src/tasks/`), so an ambiguous answer pushes a
   disambiguation sub-question and resumes underneath it; the assistant is now a
-  thin consumer of one reusable interpreter.
+  thin consumer of one reusable interpreter. The plan preview also picked up a
+  **second edit channel** — a chat box in the `PlanSheet` itself ("just Sam",
+  "skip the reminder") alongside tap-to-strike, backed by a new
+  `PersonIntelligence.revisePlan` brain method — and dropped its supervision
+  picker: every plan now runs `confirm-once` ("watch it run") by default.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

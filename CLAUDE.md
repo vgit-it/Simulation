@@ -705,6 +705,11 @@ per-plan choice, and every drafted proposal is editable before it commits.
 - **Plan editing**: tap a step in the `PlanSheet` to strike it from the run
   (struck steps show crossed out; Run disables if no action step remains).
 
+> **Superseded:** the per-plan supervision picker described above was later
+> removed — see "PlanSheet — chat-driven editing + fixed supervision" below.
+> Every plan now runs `confirm-once`; the invalid/high-stakes floors are
+> unaffected.
+
 Deferred from track ②: interrupt-&-takeover (detect the user doing a paused
 step manually and skip ahead).
 
@@ -1228,6 +1233,39 @@ Deferred (the remaining Stage-3 follow-up): fold plan *execution*
 (`usePlanRunner`), scenarios (`scenarios/runner`), and autopilot onto this one
 interpreter; persist a suspended stack across reload. Stage 5 (LLM cost) is the
 final planned stage.
+
+### PlanSheet — chat-driven editing + fixed supervision ✅ (current, pre-M5)
+
+Two UX changes to the plan preview, requested independently of the staged
+roadmap above: a second edit channel, and one fewer decision before Run.
+
+- **Chat-driven plan edits**: the `PlanSheet` gained its own chat box (below
+  the step list, above the Cancel/Run footer) — "just Sam", "skip the
+  reminder", "add Sam too" work as well as tapping a step to strike it. Per
+  principle 3, this is smart and goes through the brain, not a hardcoded
+  parser in the component: `PersonIntelligence.revisePlan(ctx, plan, message)`
+  (`src/intelligence/types.ts`) returns `{ reply, plan: Plan | null }` —
+  `plan: null` means the edit couldn't be understood, surfaced as an honest
+  explanation rather than a guess. The mock (`src/intelligence/mock.ts`)
+  recognizes three deterministic shapes (strike a step by naming its
+  app/action, change a share/message step's recipients — replace/add/remove,
+  reusing `matchContacts` — or retitle a reminder); Gemini gets the same seam
+  (`buildRevisePlanRequest`, `src/intelligence/llm/prompt.ts`, serializing the
+  plan into the system prompt) and can do more, since it actually understands
+  language. A revision keeps the plan's own `id` (the sheet's struck-step set
+  is keyed by it) and every untouched step's `id`; `Assistant.tsx` logs both
+  turns into the thread that produced the plan even though the ambient
+  surface has already closed by the time the sheet is open (captured via a
+  new `planSession` ref, since `proposePlan` nulls `control.sessionId` right
+  after opening the preview) — chat history stays event-log state either way.
+- **Supervision picker removed**: `PlanSheet` no longer offers `confirm-each`/
+  `confirm-once`/`auto` — every plan now runs `confirm-once` ("watch it run"),
+  hardcoded rather than chosen. The non-waivable consent gate
+  (`usePlanRunner`: an invalid or high-stakes proposal always pauses) is
+  unaffected, so a share/message step still stops for its own approval. This
+  closes the `TASK_SYSTEM.md` open thread about unifying the pre-preview
+  clarify pass's `DEFAULT_SUPERVISION` with the PlanSheet's picker — there is
+  now only one supervision value in play.
 
 ### M6 — More device shells & richer visuals
 

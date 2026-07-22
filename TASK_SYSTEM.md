@@ -9,8 +9,11 @@ implemented**: confidence-ranked input resolution + the medium confirm band
 (`src/actions/requirements.ts`), **elicit value-kind pickers + NL parse**
 (`src/actions/valueKinds.ts`, `src/assistant/pickers/`), the **stakes / consent
 gate** (`stakes` → `Proposal.stakes` → `usePlanRunner`/`ProposalSheet`), and the
-**task-stack interpreter** for input resolution (`src/tasks/`). Remaining: Stage
-5 (LLM-cost caching) and the driver-unification follow-up (fold plan execution /
+**task-stack interpreter** for input resolution (`src/tasks/`). A Composite can
+now also be **revised after preview from a second chat channel**
+(`PersonIntelligence.revisePlan`), alongside tap-to-strike, and the PlanSheet's
+supervision picker is gone — every plan runs `confirm-once`. Remaining: Stage 5
+(LLM-cost caching) and the driver-unification follow-up (fold plan execution /
 scenarios / autopilot onto the one interpreter). The engine's other precursors
 fold into the unified model as those land.
 
@@ -112,10 +115,17 @@ fold into the unified model as those land.
   - `confirm-each` → **high** (even confident guesses get a confirm).
 - I.e. **supervision level = how confident an inference must be before the task
   stops asking.**
-- **✅ Implemented**: `meetsThreshold(confidence, supervision)`. The pre-preview
-  clarify pass uses a fixed `DEFAULT_SUPERVISION` (`confirm-once`) since
-  supervision is picked later at the PlanSheet; unifying the two into one dial
-  (pick supervision *before* clarify) is an open thread.
+- **✅ Implemented**: `meetsThreshold(confidence, supervision)`. The `PlanSheet`
+  no longer offers a supervision picker — every plan now runs at a single
+  fixed level, `confirm-once` ("watch it run": one approval at Run, the phone
+  still walks step-by-step; a high-stakes or invalid step still pauses
+  regardless — the non-waivable floor is unaffected). The pre-preview clarify
+  pass already used the same constant (`DEFAULT_SUPERVISION`), so this closes
+  what was previously an open thread about unifying the two — there is now
+  only one supervision value in play, chosen nowhere, always `confirm-once`.
+  `Supervision` stays three-valued (`src/plans/types.ts`) since
+  `usePlanRunner`'s consent gate and this threshold both still reason in
+  those terms, and a non-UI caller can still pass any of the three.
 
 ## Elicit tasks — one question, two answer channels
 
@@ -146,6 +156,28 @@ fold into the unified model as those land.
   a one-level re-elicit that becomes fully recursive once the task stack lands.
   Shipped kinds: **contact** + **choice**; **photo-set**/**date** are declared
   but fall through to the text input for now.
+
+## Revising a Composite after preview — chat as a second edit channel
+
+- The PlanSheet already had one edit channel: tap a step to strike it. It now
+  has a second, symmetric one — a chat box in the same sheet, so "just Sam" or
+  "skip the reminder" works as well as tapping.
+- **✅ Implemented**: `PersonIntelligence.revisePlan(ctx, plan, message)`
+  (`src/intelligence/types.ts`) — a smart edit, so it goes through the brain
+  (principle 3), not a hardcoded parser in the component. The mock
+  (`src/intelligence/mock.ts`) recognizes three deterministic shapes (strike a
+  step by naming its app/action, change a share/message step's recipients,
+  retitle a reminder) and is honest — `plan: null` — when nothing matches
+  rather than guessing. Gemini gets the same seam (`buildRevisePlanRequest`,
+  `src/intelligence/llm/prompt.ts`) with the plan serialized into the system
+  prompt and can do more, since it actually understands language.
+- This is a **Composite edited in place**, not a new task kind: the revised
+  `Plan` keeps its `id` (the PlanSheet's struck-step set is keyed by it) and
+  every untouched step keeps its own `id` — only a newly-added step mints one.
+  `Assistant.tsx` logs both chat turns into the thread that produced the plan
+  (chat history stays event-log state even after the ambient surface that
+  opened the preview has closed) and swaps the previewed plan in place on a
+  successful edit, leaving it untouched with an explanation otherwise.
 
 ## Stakes — the consent gate
 

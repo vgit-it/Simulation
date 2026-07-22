@@ -82,7 +82,7 @@ export function usePlanRunner(): PlanRunner {
   );
 
   const start = useCallback(
-    (plan: Plan, supervision: Supervision = 'confirm-each', struck = 0) => {
+    (plan: Plan, supervision: Supervision = 'confirm-once', struck = 0) => {
       dispatch({
         type: 'PlanStarted',
         at: stateRef.current.clock,

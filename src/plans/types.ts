@@ -36,14 +36,20 @@ export interface Plan {
 }
 
 /**
- * How closely the user supervises a plan's action steps — the trust dial,
- * chosen per-plan at the PlanSheet:
- *  - 'confirm-each': pause at every action step's ProposalSheet (default).
+ * How closely the user supervises a plan's action steps:
+ *  - 'confirm-each': pause at every action step's ProposalSheet.
  *  - 'confirm-once': the Run tap is the one approval; actions auto-commit
  *    while the phone still visibly walks app-by-app.
  *  - 'auto': just do it — commit every step immediately with no walkthrough;
  *    the receipt shows up in the activity feed.
- * Regardless of level, an action whose proposal is invalid pauses for the
- * user — autonomy never overrides a validity stop.
+ * Regardless of level, an action whose proposal is invalid, or whose stakes
+ * are high, pauses for the user — autonomy never overrides those stops.
+ *
+ * The `PlanSheet` no longer offers a picker for this — every plan runs as
+ * `confirm-once` ("watch it run"), a fixed default rather than a per-plan
+ * choice. The type stays three-valued because `usePlanRunner`'s consent gate
+ * and `requirements.ts`'s confidence threshold (`DEFAULT_SUPERVISION`) both
+ * still reason in these terms, and a non-UI caller (a test, a future driver)
+ * can still pass any of the three.
  */
 export type Supervision = 'confirm-each' | 'confirm-once' | 'auto';

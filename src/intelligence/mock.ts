@@ -8,7 +8,7 @@ import {
   type RuntimeState,
 } from '../state';
 import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
-import { requestedShareRecipients } from './shareRecipients';
+import { matchContacts, requestedShareRecipients } from './shareRecipients';
 import type {
   ChatReply,
   ChatTurn,
@@ -425,6 +425,137 @@ class MockPersonIntelligence implements PersonIntelligence {
 
     return {
       text: `${greeting}I'm a scripted assistant for now — ask me about sharing this week's photos, or who you've been photographed with.`,
+    };
+  }
+
+  /**
+   * Deterministic edits to an already-previewed plan (the PlanSheet's chat
+   * box) — an alternative to tapping a step to strike it. Recognizes three
+   * shapes: strike a whole step by naming its app/action ("skip the
+   * reminder"), change a share/message step's recipients by naming a contact
+   * (replace/add/remove), or retitle a reminder. Anything else is an honest
+   * "couldn't apply that" rather than a guess. Preserves the `id` of every
+   * step it doesn't touch — `PlanSheet`'s struck-step set is keyed by id.
+   */
+  async revisePlan(
+    _ctx: ContextBundle,
+    plan: Plan,
+    message: string,
+  ): Promise<{ reply: string; plan: Plan | null }> {
+    const text = message.trim();
+    const lower = text.toLowerCase();
+
+    const shareIdx = plan.steps.findIndex((s) => s.intent === 'share-photos');
+    const messageIdx = plan.steps.findIndex((s) => s.intent === 'send-message');
+    const reminderIdx = plan.steps.findIndex((s) => s.intent === 'create-reminder');
+
+    const dropStep = (idx: number): { reply: string; plan: Plan | null } | null => {
+      if (idx < 0) return null;
+      const kept = plan.steps.filter((_, i) => i !== idx);
+      if (!kept.some((s) => s.intent)) {
+        return {
+          reply:
+            "That's the only action left in the plan — I can't remove it. Cancel below if you don't want to run it.",
+          plan: null,
+        };
+      }
+      return {
+        reply: `Removed “${plan.steps[idx].description}.”`,
+        plan: { ...plan, steps: kept },
+      };
+    };
+
+    if (/\b(remove|skip|drop|without|don'?t|do not)\b/.test(lower)) {
+      if (/remind/.test(lower) && reminderIdx >= 0) {
+        const r = dropStep(reminderIdx);
+        if (r) return r;
+      }
+      if (/\b(message|text)\b/.test(lower) && messageIdx >= 0) {
+        const r = dropStep(messageIdx);
+        if (r) return r;
+      }
+      if (/\b(share|photo)\b/.test(lower) && shareIdx >= 0) {
+        const r = dropStep(shareIdx);
+        if (r) return r;
+      }
+    }
+
+    if (reminderIdx >= 0 && /remind/.test(lower)) {
+      const m = text.match(
+        /(?:change|make|set)\s+(?:the\s+)?remind(?:er)?\s+(?:to\s+|title\s+to\s+)?(.+)/i,
+      );
+      const title = m?.[1]?.trim();
+      if (title) {
+        const steps = plan.steps.map((s, i) =>
+          i === reminderIdx
+            ? {
+                ...s,
+                payload: { ...s.payload, title },
+                description: `Add reminder: “${title}”`,
+              }
+            : s,
+        );
+        return {
+          reply: `Updated the reminder to “${title}.”`,
+          plan: { ...plan, steps },
+        };
+      }
+    }
+
+    // Recipients: a share step keeps them in `payload.recipients`; a message
+    // step's `ids` ARE the recipients — the two capabilities differ.
+    const recipientIdx = shareIdx >= 0 ? shareIdx : messageIdx;
+    if (recipientIdx >= 0) {
+      const named = matchContacts(this.personId, text);
+      if (named.length) {
+        const step = plan.steps[recipientIdx];
+        const isShare = step.intent === 'share-photos';
+        const current = isShare
+          ? ((step.payload?.recipients as string[] | undefined) ?? [])
+          : (step.ids ?? []);
+        const namedIds = named.map((r) => r.id);
+
+        let recipients: string[];
+        if (/\b(remove|without|exclude|not)\b/.test(lower)) {
+          const excluded = new Set(namedIds);
+          recipients = current.filter((id) => !excluded.has(id));
+          if (recipients.length === 0) {
+            return {
+              reply:
+                "That would leave no one to send to — Cancel below if you don't want to run this.",
+              plan: null,
+            };
+          }
+        } else if (/\b(add|also|include)\b/.test(lower)) {
+          recipients = [...new Set([...current, ...namedIds])];
+        } else {
+          // "just Sam" / "only Sam" / a bare name — replace outright.
+          recipients = namedIds;
+        }
+
+        const names = recipients
+          .map((id) => resolvePerson(this.personId, id).name)
+          .join(', ');
+        const description = isShare
+          ? `Share ${step.ids?.length === 1 ? 'it' : 'them'} with ${names}`
+          : `Send a message to ${names}`;
+        const steps = plan.steps.map((s, i) => {
+          if (i !== recipientIdx) return s;
+          return isShare
+            ? { ...s, payload: { ...s.payload, recipients }, description }
+            : { ...s, ids: recipients, description };
+        });
+        return {
+          reply: `Updated — now ${isShare ? 'sharing' : 'sending'} with ${names}.`,
+          plan: { ...plan, steps },
+        };
+      }
+    }
+
+    return {
+      reply:
+        "I couldn't apply that — try tapping a step to remove it, or name who to add/remove.",
+      plan: null,
     };
   }
 }

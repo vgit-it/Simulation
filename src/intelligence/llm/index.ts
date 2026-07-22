@@ -11,7 +11,7 @@ import type {
   ShareDraft,
   Suggestion,
 } from '../types';
-import { buildLLMRequest } from './prompt';
+import { buildLLMRequest, buildRevisePlanRequest } from './prompt';
 
 /**
  * The LLM-backed brain, in DRY-RUN mode: it assembles the exact Anthropic
@@ -65,6 +65,21 @@ class DryRunPersonIntelligence implements PersonIntelligence {
         `tools: ${toolNames || 'none'}, ` +
         `messages: ${llmRequest.messages.length}).`,
       llmRequest,
+    };
+  }
+
+  async revisePlan(
+    ctx: ContextBundle,
+    plan: Plan,
+    message: string,
+  ): Promise<{ reply: string; plan: Plan | null }> {
+    const req = buildRevisePlanRequest(ctx, plan, message);
+    return {
+      reply:
+        `🔌 LLM dry run — no call was made. This is exactly what would be ` +
+        `sent to revise the plan (system prompt: ${req.system.length} chars, ` +
+        `messages: ${req.messages.length}).`,
+      plan: null,
     };
   }
 }
