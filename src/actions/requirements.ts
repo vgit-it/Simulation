@@ -56,6 +56,12 @@ export interface Slot {
   min?: number;
   /** Optional slots never block a proposal or trigger a clarification. */
   optional?: boolean;
+  /**
+   * The elicit value kind (contact / choice / text / …) — drives which picker
+   * the assistant surface shows and which parser folds a typed answer. Absent =
+   * no structured picker; the free-text input is the only channel.
+   */
+  valueKind?: string;
 }
 
 /**
@@ -260,25 +266,29 @@ export function resolvePlanSlots(
 }
 
 /**
- * Accept a `confirm`-band gap's pre-filled candidate — the user tapped the
- * confirm chip rather than typing an override. Binds the candidate's value onto
- * the gap's step (an operand → `ids`, a payload slot → `payload[key]`), so a
- * re-check sees it as an explicit, high-confidence input and stops asking.
+ * Bind a resolved value onto a gap's step (an operand → `ids`, a payload slot →
+ * `payload[key]`), so a re-check sees it as an explicit, high-confidence input
+ * and stops asking. The value comes from a tapped confirm chip, a picker
+ * selection, or a disambiguation choice — one binding path for all three.
  */
-export function acceptGap(plan: Plan, gap: PlanGap): Plan {
-  if (!gap.candidate) return plan;
+export function bindGapValue(plan: Plan, gap: PlanGap, value: unknown): Plan {
   const step = plan.steps[gap.stepIndex];
   const bound =
     gap.slot.source === 'selection'
-      ? { ...step, ids: gap.candidate.value as string[] }
-      : {
-          ...step,
-          payload: { ...(step.payload ?? {}), [gap.slot.key]: gap.candidate.value },
-        };
+      ? { ...step, ids: value as string[] }
+      : { ...step, payload: { ...(step.payload ?? {}), [gap.slot.key]: value } };
   return {
     ...plan,
     steps: plan.steps.map((s, i) => (i === gap.stepIndex ? bound : s)),
   };
+}
+
+/**
+ * Accept a `confirm`-band gap's pre-filled candidate — the user tapped the
+ * confirm chip rather than typing an override.
+ */
+export function acceptGap(plan: Plan, gap: PlanGap): Plan {
+  return gap.candidate ? bindGapValue(plan, gap, gap.candidate.value) : plan;
 }
 
 /**

@@ -150,5 +150,8 @@ subpath and can be opened on a real phone.
   [`TASK_SYSTEM.md`](./TASK_SYSTEM.md). **Stage 1** ✅ confidence-ranked input
   resolution — the assistant confirms a low-confidence guess (a pre-filled
   "Share with …?" chip) instead of silently acting, binds a confident one, and
-  asks outright when it has nothing to go on.
+  asks outright when it has nothing to go on. **Stage 2** ✅ elicit value-kind
+  pickers + NL parse — an open question ("Who should I share these with?")
+  offers a tappable contact picker *and* accepts a typed name, disambiguating
+  when the name is ambiguous.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

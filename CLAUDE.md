@@ -320,7 +320,12 @@ and returns its `{ candidate, band }` (band = ok/confirm/elicit at the
 supervision threshold), `absorbAnswer` folds a free-text answer back into that
 step's payload (a name → a person id via the resolver; a title verbatim), and
 `acceptGap` folds a tapped confirm. Declaration in content, resolution in code —
-the same split as the capability registry.
+the same split as the capability registry. A slot also declares a **`valueKind`**
+(`contact`/`text`/…) that drives its two elicit channels: a natural-language
+**parser** (`src/actions/valueKinds.ts` — `parseSlotAnswer`) and a structured
+**picker** (`src/assistant/pickers/` — `valueKind → PickerComponent`). Adding a
+value kind = a parser entry + a picker + the `valueKind:` on the slot; a picked
+or parsed value binds through the one `bindGapValue` path.
 
 **Expose a user selection to the assistant:** apps write what the user has
 picked to the session (`setSelection({ app, kind, ids })`, `src/session`);
@@ -1129,6 +1134,38 @@ suspend/resume task stack (Stage 3), stakes/consent (Stage 4), LLM-cost caching
 (Stage 5). One open thread: the clarify pass uses a fixed `DEFAULT_SUPERVISION`
 (`confirm-once`) since supervision is picked later at the PlanSheet — unifying
 the two into one dial is future work.
+
+### Task System — Stage 2: elicit value-kind pickers + NL parse ✅ (current, pre-M5)
+
+The second Task-System stage (`TASK_SYSTEM.md`): an elicit now has **two answer
+channels** — a structured picker and natural language — both driven by a slot's
+declared **value kind** and both feeding the Stage-1 gap/threshold machinery.
+
+- **Slots declare a `valueKind`** (`world/apps/*.md`, schema'd in
+  `src/world/schema.ts` on both `selectionSpec` and `slotSpec`; threaded onto
+  `Slot` via `slotsFor`): `recipients`/`people` → `contact`, titles/text →
+  `text`, the photos operand → `photo-set`. Distinct from `selection.kind` (the
+  selection TYPE) — it's the picker/parser kind.
+- **NL channel** — `src/actions/valueKinds.ts` (pure): a `valueKind → parse`
+  registry. `contact` reuses `matchContacts` (`shareRecipients.ts`, extracted:
+  full/first-name substring, then single-token first-name prefix), `text` is
+  verbatim. `parseSlotAnswer` returns `Candidate[]` — **1** binds, **many**
+  disambiguate, **0** re-asks.
+- **Structured channel** — `src/assistant/pickers/` (mirrors `appId → renderer`):
+  a `valueKind → PickerComponent` registry. `ContactPicker` (multi-select
+  contact list, reuses the ContactsApp row) yields a max-confidence candidate;
+  `ChoicePicker` renders disambiguation alternatives. `photo-set`/`date` fall
+  through to the text input (fast-follows).
+- **One bind path** — `bindGapValue` (`requirements.ts`) folds a confirm chip, a
+  picker pick, or a choice tap identically; the assistant surface renders the
+  picker/choice above the live input, and a typed answer routes through
+  `parseSlotAnswer`.
+
+Deferred: recursive multi-level elicit nesting (Stage 3's task stack — depth-1
+`pending` handles one disambiguation hop); `photo-set`/`date` pickers;
+message-recipient elicit (the mock drops a recipient-less message step before a
+plan forms). Disambiguation isn't seed-demonstrable — the six residents have no
+colliding first-name prefixes — but the mechanism is unit-tested and wired.
 
 ### M6 — More device shells & richer visuals
 
