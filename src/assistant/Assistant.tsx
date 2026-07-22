@@ -53,6 +53,16 @@ export function Assistant() {
   const open = control.sessionId !== null;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
+  // The conversation thread that produced `previewPlan` — captured because
+  // `proposePlan` closes the ambient surface (nulling `control.sessionId`)
+  // right after opening the preview, so a later chat edit inside the
+  // PlanSheet still has somewhere to log its turns.
+  const [planSession, setPlanSession] = useState<string | null>(null);
+  // A chat edit to the previewed plan (PlanSheet's own chat box) in flight,
+  // and the brain's reply to the last one (a confirmation, or why it
+  // couldn't apply) — shown in the sheet's status strip.
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [lastEditReply, setLastEditReply] = useState<string | null>(null);
   // The input-resolution stack (Stage 3's interpreter): the assistant asked for
   // a slot it can't bind silently — a `confirm` chip, an `elicit` picker, or a
   // disambiguation `choice` pushed over an elicit — and is waiting on the user.
@@ -133,8 +143,65 @@ export function Assistant() {
       goal: plan.goal,
       steps: plan.steps.length,
     });
+    setPlanSession(control.sessionId);
+    setLastEditReply(null);
     setPreviewPlan(plan);
     control.close();
+  }
+
+  /**
+   * A chat edit inside the PlanSheet ("just Sam", "skip the reminder") — an
+   * alternative to tapping a step to strike it. Logs both turns into the
+   * thread that produced the plan (chat history stays event-log state even
+   * for an edit made after the ambient surface closed), asks the brain to
+   * revise the already-previewed plan, and swaps the preview in place when it
+   * can. An edit the brain couldn't apply just surfaces its explanation —
+   * the previewed plan is untouched.
+   */
+  async function editPreviewPlan(message: string) {
+    if (!previewPlan) return;
+    const ctx = assembleContext(session, state, {});
+    const person = session.personId;
+    const thread = planSession;
+
+    if (thread !== null) {
+      dispatch({
+        type: 'ChatMessage',
+        at: state.clock,
+        person,
+        role: 'user',
+        text: message,
+        session: thread,
+      });
+    }
+
+    setEditingPlan(true);
+    let result: { reply: string; plan: Plan | null };
+    try {
+      result = await intelligenceFor(person).revisePlan(ctx, previewPlan, message);
+    } catch (err) {
+      result = {
+        reply: `Sorry — I couldn't apply that. ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        plan: null,
+      };
+    }
+    setEditingPlan(false);
+    setLastEditReply(result.reply);
+
+    if (thread !== null) {
+      dispatch({
+        type: 'ChatMessage',
+        at: state.clock,
+        person,
+        role: 'assistant',
+        text: result.reply,
+        session: thread,
+      });
+    }
+
+    if (result.plan) setPreviewPlan(result.plan);
   }
 
   /** Dispatch an assistant chat turn into the open thread (sim-clocked). */
@@ -281,6 +348,8 @@ export function Assistant() {
   function runPlan(plan: Plan, supervision: Supervision, struck: number) {
     runner.start(plan, supervision, struck);
     setPreviewPlan(null);
+    setPlanSession(null);
+    setLastEditReply(null);
   }
 
   /** Dismissing the preview declines the plan — recorded, not just closed. */
@@ -295,6 +364,8 @@ export function Assistant() {
       });
     }
     setPreviewPlan(null);
+    setPlanSession(null);
+    setLastEditReply(null);
   }
 
   // The current ask is the top frame of the resolver stack. What the top of the
@@ -470,8 +541,16 @@ export function Assistant() {
         </OverlayLayer>
       )}
 
-      {/* Plan preview (chat -> plan). Approve to run it on the phone. */}
-      <PlanSheet plan={previewPlan} onRun={runPlan} onCancel={declinePlan} />
+      {/* Plan preview (chat -> plan). Approve to run it on the phone, or
+          revise it from the sheet's own chat box first. */}
+      <PlanSheet
+        plan={previewPlan}
+        onRun={runPlan}
+        onCancel={declinePlan}
+        onChatEdit={editPreviewPlan}
+        editing={editingPlan}
+        lastEditReply={lastEditReply}
+      />
 
       {/* Suggestion / direct-share proposals. */}
       <ProposalSheet

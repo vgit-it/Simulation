@@ -101,6 +101,22 @@ export interface PersonIntelligence {
    * the same shape (tool/capability calls) in M5.
    */
   plan(ctx: ContextBundle, request: string): Plan | null;
+  /**
+   * Revise an ALREADY-PREVIEWED plan (the PlanSheet, before it runs) from a
+   * chat message — "actually just Sam", "skip the reminder" — as an
+   * alternative to tapping a step to strike it. `plan: null` means the edit
+   * couldn't be understood/applied; the UI shows `reply` as an explanation and
+   * leaves the previewed plan untouched. A successful edit keeps the same
+   * `Plan.id` and preserves the `id` of every step it doesn't touch (only
+   * newly-added steps get fresh ids), since the PlanSheet's struck-step set is
+   * keyed by step id. Async for the same reason `respond` is — a real
+   * provider awaits the network.
+   */
+  revisePlan(
+    ctx: ContextBundle,
+    plan: Plan,
+    message: string,
+  ): Promise<{ reply: string; plan: Plan | null }>;
 }
 
 /**

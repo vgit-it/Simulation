@@ -16,7 +16,7 @@ import type {
   ShareDraft,
   Suggestion,
 } from '../types';
-import { buildLLMRequest, type LLMRequest } from './prompt';
+import { buildLLMRequest, buildRevisePlanRequest, type LLMRequest } from './prompt';
 
 /**
  * The REAL LLM brain, backed by the Google Gemini API. This is the M5 tail the
@@ -343,6 +343,36 @@ class GeminiPersonIntelligence implements PersonIntelligence {
       modelChain(this.model()),
     );
     return withRequestedShareRecipients(parseChatReply(text), ctx, message);
+  }
+
+  async revisePlan(
+    ctx: ContextBundle,
+    plan: Plan,
+    message: string,
+  ): Promise<{ reply: string; plan: Plan | null }> {
+    try {
+      const req = buildRevisePlanRequest(ctx, plan, message);
+      const body = toGeminiRequest(req);
+      const text = await callGeminiWithFallback(
+        body,
+        this.apiKey(),
+        modelChain(this.model()),
+      );
+      const reply = withRequestedShareRecipients(parseChatReply(text), ctx, message);
+      // The model mints a fresh plan id; the PlanSheet keys struck-step state
+      // on it, so a revision must keep the ORIGINAL plan's id.
+      return {
+        reply: reply.text,
+        plan: reply.plan ? { ...reply.plan, id: plan.id } : null,
+      };
+    } catch (err) {
+      return {
+        reply: `Sorry — I couldn't apply that. ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        plan: null,
+      };
+    }
   }
 }
 
