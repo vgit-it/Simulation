@@ -689,9 +689,10 @@ per-plan choice, and every drafted proposal is editable before it commits.
   actions auto-commit while the phone still walks app-by-app), and `auto`
   ("Just do it": every step commits back-to-back with no walkthrough — the
   receipt appears in the activity feed). An **invalid proposal always pauses**,
-  whatever the level — autonomy never overrides a validity stop. The chosen
-  level rides on `PlanStarted` and shows in the activity feed (telemetry for
-  track ⑥).
+  whatever the level — autonomy never overrides a validity stop (and, since
+  Task System Stage 4, a **high-stakes proposal always pauses too** — the
+  consent gate). The chosen level rides on `PlanStarted` and shows in the
+  activity feed (telemetry for track ⑥).
 - **Editable proposals**: `Proposal` gained `amend(edit) -> Proposal` — each
   capability re-derives its own display fields AND events from an edit, so
   what's on screen is exactly what commits. `ProposalSheet` renders the message
@@ -1166,6 +1167,31 @@ Deferred: recursive multi-level elicit nesting (Stage 3's task stack — depth-1
 message-recipient elicit (the mock drops a recipient-less message step before a
 plan forms). Disambiguation isn't seed-demonstrable — the six residents have no
 colliding first-name prefixes — but the mechanism is unit-tested and wired.
+
+### Task System — Stage 4: stakes / consent gate ✅ (current, pre-M5)
+
+The third Task-System stage (`TASK_SYSTEM.md`): a **stakes** dimension,
+orthogonal to confidence and supervision. Confidence gates *inputs* (elicit);
+stakes gates the *effect* (consent).
+
+- **Declared per action** (`stakes: low|high` in `world/apps/*.md`, schema'd in
+  `src/world/schema.ts` — `share-photos`/`send-message` = high, `create-reminder`
+  = low), carried onto `Capability`. `effectiveStakes(baseline, recipientCount)`
+  (`src/actions/capabilities.ts`) escalates the baseline by blast radius; every
+  `propose` impl bakes the result into `Proposal.stakes`, so the direct pipeline,
+  the plan executor (`resolvePlanStep`), and `amend` all carry it.
+- **The consent gate is the non-waivable floor** (`usePlanRunner.tsx`): a
+  high-stakes proposal ALWAYS pauses at the `ProposalSheet` — even under
+  `confirm-once`/`auto` — joining the existing `invalidReason` validity stop.
+  Autonomy never lowers it. The sheet shows an "it can't be undone" cue.
+- **Consent telemetry**: committing/cancelling a high-stakes proposal dispatches
+  `ConsentDecision { intent, stakes, decision: granted|denied }`
+  (`src/state/events.ts`) — telemetry-only in the reducer (like `AppOpened`),
+  wall-stamped by the trace so decision latency is derivable from the export.
+
+Deferred: scoped consent grants (session / amount / per-recipient), derived
+stakes (from reversibility rather than declared), amount-based escalation, an
+in-app consent HUD (the session export is the analysis surface).
 
 ### M6 — More device shells & richer visuals
 

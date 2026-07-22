@@ -159,8 +159,14 @@ export function usePlanRunner(): PlanRunner {
 
     if (result.proposal) {
       const proposal = result.proposal;
-      // A proposal that can't commit pauses at the sheet whatever the level.
-      if (supervision === 'confirm-each' || proposal.invalidReason) {
+      // Always pause at the sheet, whatever the level, when: the user is
+      // confirming each step, the proposal can't commit (validity), OR it's
+      // high-stakes (the consent gate — the floor autonomy can't lower).
+      if (
+        supervision === 'confirm-each' ||
+        proposal.invalidReason ||
+        proposal.stakes === 'high'
+      ) {
         setActive((a) => (a ? { ...a, proposal } : null));
         return;
       }

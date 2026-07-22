@@ -24,12 +24,35 @@ import type { Candidate, Slot, SlotResolver } from './requirements';
 /** Free-form per-intent inputs (e.g. a message's text, a reminder's title). */
 export type ActionPayload = Record<string, unknown>;
 
+/**
+ * How consequential committing an action is (its reversibility / cost of
+ * reversal). `high` passes a non-waivable consent gate at commit; `low` doesn't.
+ */
+export type Stakes = 'low' | 'high';
+
+/** Recipient count at/above which a low-baseline commit escalates to high. */
+const HIGH_STAKES_RECIPIENTS = 5;
+
+/**
+ * The EFFECTIVE stakes of a specific commit: the action's declared baseline,
+ * escalated by context (blast radius) — parallel to how confidence is computed,
+ * not just declared. Deterministic (principle 8); no current action trips the
+ * escalation, but it's the hook the design calls for (amount, recipient count).
+ */
+export function effectiveStakes(baseline: Stakes, recipientCount: number): Stakes {
+  return baseline === 'high' || recipientCount >= HIGH_STAKES_RECIPIENTS
+    ? 'high'
+    : 'low';
+}
+
 export interface Capability {
   /** The intent id, e.g. 'share-photos' (== the app action id). */
   intent: string;
   /** The app that owns/declares this capability. */
   app: string;
   label: string;
+  /** The declared stakes baseline (escalated per-commit by `effectiveStakes`). */
+  stakes: Stakes;
   /** What must be selected for this capability to apply (absent = none). */
   selection?: SelectionSpec;
   /**
@@ -101,6 +124,7 @@ function proposeSharePhotos(
   return {
     id: uid('prop'),
     intent: 'share-photos',
+    stakes: effectiveStakes(capabilityFor('share-photos').stakes, recipients.length),
     title: `Share ${count} photo${count === 1 ? '' : 's'}`,
     summary: recipients.length
       ? `With ${recipients.map((r) => r.name).join(', ')}`
@@ -153,6 +177,7 @@ function proposeSendMessage(
   return {
     id: uid('prop'),
     intent: 'send-message',
+    stakes: effectiveStakes(capabilityFor('send-message').stakes, ids.length),
     title: `Message ${names || '…'}`,
     summary: ids.length ? `To ${names}` : 'No recipients selected',
     recipients,
@@ -196,6 +221,7 @@ function proposeCreateReminder(
   return {
     id: uid('prop'),
     intent: 'create-reminder',
+    stakes: effectiveStakes(capabilityFor('create-reminder').stakes, 0),
     title: 'Add reminder',
     summary: title || 'What should I remind you about?',
     recipients: [],
@@ -321,6 +347,7 @@ function buildRegistry(): Map<string, Capability> {
         intent: action.id,
         app: app.id,
         label: action.label,
+        stakes: action.stakes,
         selection: action.selection,
         slots,
         resolvers,

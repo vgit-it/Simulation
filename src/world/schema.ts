@@ -49,6 +49,13 @@ export const appActionSchema = z.object({
   selection: selectionSpecSchema.optional(),
   /** Payload inputs this action needs (beyond the selection operand). */
   requires: z.array(slotSpecSchema).default([]),
+  /**
+   * How consequential COMMITTING this action is — the reversibility / cost of
+   * reversal. `high` (send a message, share — irreversible) passes a consent
+   * gate at commit even under `auto` supervision; `low` (a reminder — cheaply
+   * undone) doesn't. Declared here; escalated by context in code.
+   */
+  stakes: z.enum(['low', 'high']).default('low'),
 });
 export type AppAction = z.infer<typeof appActionSchema>;
 

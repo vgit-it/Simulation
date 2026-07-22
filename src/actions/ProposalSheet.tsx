@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSession } from '../session';
 import { useStore } from '../state';
 import { Sheet, prefersReducedMotion } from '../ui';
 import { commit, type Proposal } from './index';
@@ -21,7 +22,8 @@ const SENT_BEAT_MS = 700;
  * unconditionally with a nullable proposal; it animates itself in and out.
  */
 export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  const { session } = useSession();
   const [sent, setSent] = useState(false);
   // The user's edited version of the incoming proposal (reset per proposal).
   const [edited, setEdited] = useState<Proposal | null>(null);
@@ -39,12 +41,35 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
     }
   }, [proposal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Record the consent decision for a HIGH-stakes commit (no-op otherwise): the
+   * trust-dynamic telemetry. `granted` on Send, `denied` on Cancel/dismiss.
+   */
+  function recordConsent(decision: 'granted' | 'denied') {
+    const p = edited ?? proposal;
+    if (p?.stakes !== 'high') return;
+    dispatch({
+      type: 'ConsentDecision',
+      at: state.clock,
+      person: session.personId,
+      intent: p.intent,
+      stakes: 'high',
+      decision,
+    });
+  }
+
   function onSend() {
     if (!proposal) return;
+    recordConsent('granted');
     // State correctness first: commit immediately, never gated on animation.
     commit(edited ?? proposal, dispatch);
     setSent(true);
     setTimeout(onSent, prefersReducedMotion() ? 0 : SENT_BEAT_MS);
+  }
+
+  function handleCancel() {
+    recordConsent('denied');
+    onCancel();
   }
 
   function editMessage(text: string) {
@@ -67,7 +92,7 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
   const doneLabel = confirmLabel === 'Send' ? '✓ Sent' : '✓ Done';
 
   return (
-    <Sheet open={proposal !== null} onDismiss={sent ? () => {} : onCancel}>
+    <Sheet open={proposal !== null} onDismiss={sent ? () => {} : handleCancel}>
       <p className="type-caption text-accent">Assistant</p>
       <h2 className="type-title mt-1">{shown.title}</h2>
       <p className="type-body-sm mt-0.5 text-muted">{shown.summary}</p>
@@ -115,9 +140,15 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
         </p>
       )}
 
+      {shown.stakes === 'high' && !shown.invalidReason && (
+        <p className="type-caption mt-space-sm text-accent">
+          ⚠︎ This sends for real — it can't be undone.
+        </p>
+      )}
+
       <div className="mt-space-xl flex gap-space-md">
         <button
-          onClick={onCancel}
+          onClick={handleCancel}
           disabled={sent}
           className={`type-label flex-1 rounded-ds-full bg-text/10 py-2.5 text-text transition duration-150 ease-out-soft active:scale-95 ${
             sent ? 'opacity-40' : ''

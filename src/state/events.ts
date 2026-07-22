@@ -140,6 +140,22 @@ export interface PlanCompletedEvent {
   outcome: 'completed' | 'cancelled' | 'declined';
 }
 
+/**
+ * The user's decision at a high-stakes consent gate — granted (committed) or
+ * denied (cancelled). First-class telemetry: the trust dynamic the prototype
+ * studies. Only high-stakes commits pass the gate, so every one of these marks
+ * a real consent moment; the trace's wall-clock stamp makes decision LATENCY
+ * derivable from the session export.
+ */
+export interface ConsentDecisionEvent {
+  type: 'ConsentDecision';
+  at: number;
+  person: string;
+  intent: string;
+  stakes: 'high';
+  decision: 'granted' | 'denied';
+}
+
 export type SimEvent =
   | MessageSentEvent
   | FactRecordedEvent
@@ -152,7 +168,8 @@ export type SimEvent =
   | PlanProposedEvent
   | PlanStartedEvent
   | PlanStepCompletedEvent
-  | PlanCompletedEvent;
+  | PlanCompletedEvent
+  | ConsentDecisionEvent;
 
 let counter = 0;
 /** Deterministic-ish unique id for events/proposals (stable within a session). */
