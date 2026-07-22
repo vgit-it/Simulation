@@ -228,6 +228,8 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
       };
     case 'AppOpened':
       return state; // no derived change yet
+    case 'ConsentDecision':
+      return state; // telemetry-only: lives in the log + trace, no derived state
   }
 }
 

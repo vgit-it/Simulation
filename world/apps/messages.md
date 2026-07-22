@@ -7,6 +7,7 @@ capabilities: [inbox, threads, receive-shares, send]
 actions:
   - id: send-message
     label: Message
+    stakes: high
     selection: { kind: people, min: 1, prompt: "Who do you want to message?", valueKind: contact }
     requires:
       - key: text

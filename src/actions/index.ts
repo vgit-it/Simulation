@@ -1,7 +1,7 @@
 import type { ContextBundle } from '../context';
 import type { ResolvedPerson } from '../intelligence';
 import type { SimEvent } from '../state';
-import { capabilityFor, type ActionPayload } from './capabilities';
+import { capabilityFor, type ActionPayload, type Stakes } from './capabilities';
 
 /**
  * The single action/intent pipeline shared by the assistant and scenarios:
@@ -29,6 +29,12 @@ export interface ProposalEdit {
 export interface Proposal {
   id: string;
   intent: string;
+  /**
+   * The effective stakes of committing this proposal. `high` must pass a
+   * consent gate even under `auto`/`confirm-once` supervision — the
+   * non-waivable floor (alongside `invalidReason`); `low` commits freely.
+   */
+  stakes: Stakes;
   title: string;
   summary: string;
   recipients: ResolvedPerson[];
@@ -50,10 +56,12 @@ export interface Proposal {
 
 export {
   capabilityFor,
+  effectiveStakes,
   listCapabilities,
   viableCapabilities,
   type ActionPayload,
   type Capability,
+  type Stakes,
 } from './capabilities';
 
 export {

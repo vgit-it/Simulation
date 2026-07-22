@@ -4,11 +4,12 @@
 > **living doc** — expand it as the system's complexity grows. Keep `CLAUDE.md`
 > and `README.md` *pointing here*; do not duplicate the model in them.
 
-**Status:** design / concept, now **landing in stages**. **Stages 1–2 are
-implemented**: confidence-ranked input resolution + the medium confirm band
-(`src/actions/requirements.ts`) and **elicit value-kind pickers + NL parse**
-(`src/actions/valueKinds.ts`, `src/assistant/pickers/`), both surfaced in
-`src/assistant/Assistant.tsx`. The rest below (the task stack, stakes, LLM-cost
+**Status:** design / concept, now **landing in stages**. **Stages 1, 2, and 4
+are implemented**: confidence-ranked input resolution + the medium confirm band
+(`src/actions/requirements.ts`), **elicit value-kind pickers + NL parse**
+(`src/actions/valueKinds.ts`, `src/assistant/pickers/`), and the **stakes /
+consent gate** (`stakes` in the action schema → `Proposal.stakes` →
+`usePlanRunner`/`ProposalSheet`). The rest below (the task stack, LLM-cost
 caching) are still design. The engine's other precursors (capabilities, plans,
 scenarios) fold into the unified model as the remaining stages land.
 
@@ -178,6 +179,17 @@ scenarios) fold into the unified model as the remaining stages land.
 - **Research telemetry:** stakes and each consent decision (granted/denied,
   latency) are first-class log events — the trust dynamic the prototype is built
   to study.
+- **✅ Implemented**: `stakes: low|high` is declared per action
+  (`src/world/schema.ts`; `share-photos`/`send-message` = high,
+  `create-reminder` = low) and carried onto `Capability`; `effectiveStakes`
+  (`src/actions/capabilities.ts`) escalates the baseline by blast radius, baked
+  into every `Proposal` (so the direct, plan-executor, and `amend` paths all
+  carry it). `usePlanRunner` pauses any high-stakes step at the ProposalSheet
+  even under `auto`/`confirm-once` (joining the `invalidReason` validity stop);
+  the sheet shows an "it can't be undone" cue and dispatches a
+  `ConsentDecision` event (granted/denied) — telemetry-only in the reducer,
+  wall-stamped by the trace for latency. Deferred: scoped grants, derived
+  stakes, amount-based escalation.
 
 ## Composition — authored + brain, one interpreter
 

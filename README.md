@@ -153,5 +153,7 @@ subpath and can be opened on a real phone.
   asks outright when it has nothing to go on. **Stage 2** ✅ elicit value-kind
   pickers + NL parse — an open question ("Who should I share these with?")
   offers a tappable contact picker *and* accepts a typed name, disambiguating
-  when the name is ambiguous.
+  when the name is ambiguous. **Stage 4** ✅ stakes / consent gate — a
+  high-stakes action (send, share) always stops for consent before it commits,
+  even on "just do it", while a low-stakes one (a reminder) commits freely.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

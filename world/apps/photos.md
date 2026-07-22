@@ -8,6 +8,7 @@ actions:
   - id: share-photos
     label: Share
     intelligence: share-photos
+    stakes: high
     selection: { kind: photos, min: 1, prompt: "Which photos do you want to share?", valueKind: photo-set }
     requires:
       - key: recipients
