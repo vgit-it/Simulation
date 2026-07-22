@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
-  bindGapValue,
-  firstPlanGap,
   parseSlotAnswer,
   propose,
-  resolvePlanSlots,
   type Candidate,
-  type PlanGap,
   type Proposal,
 } from '../actions';
+import { answerResolve, beginResolve, type ResolveState } from '../tasks';
 import { resolvePerson } from '../world';
 import { ChoicePicker, pickerFor } from './pickers/registry';
 import { ProposalSheet } from '../actions/ProposalSheet';
@@ -56,17 +53,13 @@ export function Assistant() {
   const open = control.sessionId !== null;
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [previewPlan, setPreviewPlan] = useState<Plan | null>(null);
-  // A plan waiting on a slot the assistant can't bind silently: either a
-  // `confirm` gap (a pre-filled candidate shown as a one-tap chip) or an
-  // `elicit` gap (asked outright, answered by the next turn). Cleared once the
-  // plan is fully specified (→ preview) or the conversation resets.
-  const [pending, setPending] = useState<{
-    plan: Plan;
-    request: string;
-    gap: PlanGap;
-    /** Disambiguation options when a typed answer named several (choice row). */
-    alternatives?: Candidate[];
-  } | null>(null);
+  // The input-resolution stack (Stage 3's interpreter): the assistant asked for
+  // a slot it can't bind silently — a `confirm` chip, an `elicit` picker, or a
+  // disambiguation `choice` pushed over an elicit — and is waiting on the user.
+  // The top frame is the current ask. Null when nothing is being resolved;
+  // cleared once the plan is fully specified (→ preview) or the conversation
+  // resets.
+  const [resolver, setResolver] = useState<ResolveState | null>(null);
   const [chatInput, setChatInput] = useState('');
   // The dry-run brain's assembled API payload (shown instead of an answer).
   const [lastRequest, setLastRequest] = useState<LLMRequest | null>(null);
@@ -92,7 +85,7 @@ export function Assistant() {
   useEffect(() => {
     setLastRequest(null);
     setThinking(false);
-    setPending(null);
+    setResolver(null);
     clearTimeout(thinkingTimer.current);
   }, [control.sessionId]);
 
@@ -158,9 +151,9 @@ export function Assistant() {
     });
   }
 
-  /** Render a gap's pre-filled candidate for the confirm chip (ids → names). */
-  function describeCandidate(gap: PlanGap): string {
-    const v = gap.candidate?.value;
+  /** Render a candidate for the confirm chip (person ids → names, else text). */
+  function describeCandidate(c: Candidate | null | undefined): string {
+    const v = c?.value;
     if (Array.isArray(v)) {
       return v.map((id) => resolvePerson(session.personId, String(id)).name).join(', ');
     }
@@ -168,28 +161,28 @@ export function Assistant() {
   }
 
   /**
-   * Bind a resolved value onto the pending gap — from a tapped confirm chip, a
-   * structured picker, or a disambiguation choice (one path for all three) —
-   * then ask the next gap or preview the now-complete plan. Pure slot-filling,
-   * no brain call.
+   * Resume the resolver with the answer to the current ask, as candidate(s) —
+   * from a tapped confirm chip, a structured picker, a disambiguation choice, or
+   * a parsed typed answer (one path for all). The interpreter binds a single
+   * value + advances, or pushes a choice frame for an ambiguous one. Pure
+   * slot-filling — no brain call.
    */
-  function resolveGapWith(value: unknown) {
-    if (!pending) return;
+  function applyAnswer(cands: Candidate[]) {
+    if (!resolver) return;
     const ctx = assembleContext(session, state, {});
-    const bound = bindGapValue(pending.plan, pending.gap, value);
-    const resolved = resolvePlanSlots(bound, ctx, pending.request);
-    const gap = firstPlanGap(resolved, ctx, pending.request);
-    if (gap) {
-      assistantSay(gap.slot.prompt);
-      setPending({ plan: resolved, request: pending.request, gap });
+    const result = answerResolve(resolver, ctx, cands);
+    if (result.status === 'resolving') {
+      assistantSay(result.ask.prompt);
+      setResolver(result.state);
       return;
     }
-    setPending(null);
-    proposePlan(resolved, state.clock, session.personId);
+    assistantSay("Got it — here's the plan.");
+    setResolver(null);
+    proposePlan(result.plan, state.clock, session.personId);
   }
 
-  /** A picker/choice selection resolves the pending gap with its value. */
-  const onPick = (c: Candidate) => resolveGapWith(c.value);
+  /** A picker/choice/confirm selection answers the current ask with one value. */
+  const onPick = (c: Candidate) => applyAnswer([c]);
 
   async function onChatSubmit(e: FormEvent) {
     e.preventDefault();
@@ -211,19 +204,16 @@ export function Assistant() {
     });
     setChatInput('');
 
-    // Clarification branch: this turn answers the assistant's pending question
-    // (a confirm the user overrode by typing, or an outright elicit). Fold the
-    // answer into the step's payload, then either ask the next gap or preview
-    // the now-complete plan. No brain call — pure slot-filling over the plan we
-    // already have.
-    if (pending) {
-      const { gap } = pending;
-      const step = pending.plan.steps[gap.stepIndex];
-      // Parse the typed answer through the slot's value-kind parser (a name → a
-      // contact, a title verbatim), which may return zero / one / many.
+    // Clarification branch: this turn answers the assistant's current ask (a
+    // confirm the user overrode by typing, an outright elicit, or a choice).
+    // Parse the answer into candidate(s) and hand them to the interpreter — one
+    // binds + advances, many push a disambiguation, zero re-asks. No brain call.
+    if (resolver) {
+      const top = resolver.frames[resolver.frames.length - 1];
+      const step = resolver.plan.steps[top.stepIndex];
       const cands = parseSlotAnswer(
         step.intent!,
-        gap.slot,
+        top.slot,
         message,
         ctx,
         step.ids ?? [],
@@ -231,34 +221,10 @@ export function Assistant() {
       );
       // Nothing parseable → acknowledge + re-ask (not a silent no-op).
       if (cands.length === 0) {
-        assistantSay(`I didn't catch that. ${gap.slot.prompt}`);
+        assistantSay(`I didn't catch that. ${top.slot.prompt}`);
         return;
       }
-      // Ambiguous ("j" → Jamie? Jordan?) → offer the alternatives as a choice
-      // row; the next tap/turn picks one. (Depth-1 re-elicit; recursive nesting
-      // is Stage 3's task stack.)
-      if (cands.length > 1) {
-        assistantSay('Which one did you mean?');
-        setPending({ ...pending, alternatives: cands });
-        return;
-      }
-      // Exactly one → bind and advance (the same path a picker/confirm tap
-      // takes). Re-bind any other slot a decider left resolvable before
-      // re-checking for gaps.
-      const updated = resolvePlanSlots(
-        bindGapValue(pending.plan, gap, cands[0].value),
-        ctx,
-        message,
-      );
-      const nextGap = firstPlanGap(updated, ctx, message);
-      if (nextGap) {
-        assistantSay(nextGap.slot.prompt);
-        setPending({ plan: updated, request: pending.request, gap: nextGap });
-        return;
-      }
-      assistantSay("Got it — here's the plan.");
-      setPending(null);
-      proposePlan(updated, at, person);
+      applyAnswer(cands);
       return;
     }
 
@@ -297,23 +263,18 @@ export function Assistant() {
 
     setThinking(false);
 
-    // Bind whatever's resolvable from the live situation FIRST — a decider
-    // (an LLM especially) may leave a step's operand ids empty when it treats
-    // them as "already covered by the selection" rather than restating them.
-    // Only what's left genuinely unresolved becomes a question.
-    const resolvedPlan = reply.plan ? resolvePlanSlots(reply.plan, ctx, message) : null;
-
-    // Requirement gate: a plan whose action step can't bind an input silently
-    // becomes a targeted prompt instead of a preview — a `confirm` (pre-filled
-    // chip) or an `elicit` (open question). The user's next tap/turn resolves
-    // it (the clarification branch above / a picker / resolveGapWith).
-    const gap = resolvedPlan ? firstPlanGap(resolvedPlan, ctx, message) : null;
-    assistantSay(gap ? gap.slot.prompt : reply.text);
+    // Kick off input resolution for a plan reply: the interpreter binds what's
+    // confident and surfaces the first gap as an ask (a confirm chip / picker /
+    // open question), or reports the plan is fully specified. An advisory
+    // (no-plan) reply just speaks its text.
+    const result = reply.plan ? beginResolve(reply.plan, ctx, message) : null;
     if (reply.llmRequest) setLastRequest(reply.llmRequest);
-    if (gap) {
-      setPending({ plan: resolvedPlan!, request: message, gap });
-    } else if (resolvedPlan) {
-      proposePlan(resolvedPlan, at, person);
+    if (result?.status === 'resolving') {
+      assistantSay(result.ask.prompt);
+      setResolver(result.state);
+    } else {
+      assistantSay(reply.text);
+      if (result?.status === 'done') proposePlan(result.plan, at, person);
     }
   }
 
@@ -336,38 +297,37 @@ export function Assistant() {
     setPreviewPlan(null);
   }
 
-  // What the top of the surface shows, in priority order:
-  //  - a disambiguation choice row (a typed answer named several),
-  //  - a structured picker for an elicit gap whose value kind has one,
+  // The current ask is the top frame of the resolver stack. What the top of the
+  // surface shows, in priority order:
+  //  - a disambiguation choice row (a choice frame),
+  //  - a structured picker for an elicit whose value kind has one,
   //  - a pre-filled confirm chip (the medium band),
-  //  - else the top suggestion hint (only when nothing is pending).
+  //  - else the top suggestion hint (only when nothing is being resolved).
+  const ask = resolver ? resolver.frames[resolver.frames.length - 1] : null;
+  const pendingChoice = ask?.kind === 'choice' ? ask : null;
   const pendingConfirm =
-    pending && !pending.alternatives && pending.gap.band === 'confirm' && pending.gap.candidate
-      ? pending.gap
-      : null;
+    ask?.kind === 'elicit' && ask.band === 'confirm' && ask.candidate ? ask : null;
   const PickerEl =
-    pending && !pending.alternatives && pending.gap.band === 'elicit'
-      ? pickerFor(pending.gap.slot.valueKind)
-      : null;
+    ask?.kind === 'elicit' && ask.band === 'elicit' ? pickerFor(ask.slot.valueKind) : null;
 
   const askControls = (
     <>
-      {pending?.alternatives ? (
+      {pendingChoice ? (
         <ChoicePicker
           ownerId={session.personId}
-          candidates={pending.alternatives}
+          candidates={pendingChoice.alternatives}
           onPick={onPick}
         />
       ) : PickerEl ? (
-        <PickerEl ownerId={session.personId} slot={pending!.gap.slot} onPick={onPick} />
+        <PickerEl ownerId={session.personId} slot={ask!.slot} onPick={onPick} />
       ) : pendingConfirm ? (
         <button
-          onClick={() => resolveGapWith(pendingConfirm.candidate!.value)}
+          onClick={() => applyAnswer([pendingConfirm.candidate!])}
           className="type-body-sm mb-space-md w-fit animate-rise rounded-ds-full bg-accent/85 px-space-lg py-2 text-left text-white ring-1 ring-white/20 backdrop-blur transition duration-150 active:scale-95"
         >
-          ✓ {describeCandidate(pendingConfirm)}
+          ✓ {describeCandidate(pendingConfirm.candidate)}
         </button>
-      ) : hint && !pending ? (
+      ) : hint && !resolver ? (
         <button
           onClick={() => onSuggestion(hint)}
           className="type-body-sm mb-space-md w-fit animate-rise rounded-ds-full bg-surface/80 px-space-lg py-2 text-left text-text ring-1 ring-text/10 backdrop-blur transition duration-150 active:scale-95"
@@ -408,17 +368,17 @@ export function Assistant() {
 
       {/* The invoked surface: glow bar first, response card once a reply
           exists. Tapping anywhere outside dismisses (no chrome, per design) —
-          EXCEPT while a clarification is pending: the assistant asked a
-          question and is waiting on the answer, so an outside tap must not
-          silently discard the half-built plan (that would strand the answer as
-          a fresh request in a new thread). Answer it, or switch POV to abandon. */}
+          EXCEPT while the resolver is waiting on an answer: the assistant asked
+          a question, so an outside tap must not silently discard the half-built
+          plan (that would strand the answer as a fresh request in a new
+          thread). Answer it, or switch POV to abandon. */}
       {surface.mounted && (
         <OverlayLayer>
           <div className="absolute inset-0 z-30 flex flex-col justify-end">
             <button
               aria-label="Close assistant"
               onClick={() => {
-                if (!pending) control.close();
+                if (!resolver) control.close();
               }}
               className={`absolute inset-0 cursor-default ${
                 surface.closing ? 'animate-fade-out' : 'animate-fade-in'

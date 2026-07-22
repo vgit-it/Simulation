@@ -196,6 +196,9 @@ src/
     usePlanRunner.tsx          # drives a plan through the phone (POV + lifted screen), pausing on action steps
     PlanSheet.tsx              # plan preview: approve the decomposition before it runs
     PlanProgress.tsx           # live execution HUD (checklist, current step)
+  tasks/                       # Task System interpreter: input resolution as a suspend/resume stack
+    types.ts                   # Frame (elicit/choice) + ResolveState + the task-kind mapping
+    interpreter.ts             # beginResolve/answerResolve (pure; reuses requirements + valueKinds)
   scenarios/                   # scenario playback: pure step runner + Stage-level player
     runner.ts                  # resolveStep(step, state) -> events/focus/screen (reuses plans/executor primitives)
     player.tsx                 # ScenarioPlayerProvider/useScenarioPlayer: playback that survives the Settings app closing
@@ -1192,6 +1195,39 @@ stakes gates the *effect* (consent).
 Deferred: scoped consent grants (session / amount / per-recipient), derived
 stakes (from reversibility rather than declared), amount-based escalation, an
 in-app consent HUD (the session export is the analysis surface).
+
+### Task System — Stage 3: the task-stack interpreter ✅ (current, pre-M5)
+
+The fourth Task-System stage (`TASK_SYSTEM.md`, "the mechanical heart"): input
+resolution now runs on a pure **suspend/resume stack** (`src/tasks/`), replacing
+the assistant's former inline depth-1 `pending` machine.
+
+- **`src/tasks/interpreter.ts`** (pure): `beginResolve(plan, ctx, request)` binds
+  confident values (`resolvePlanSlots`) and surfaces the first gap
+  (`firstPlanGap`) as an `ask`; `answerResolve(state, ctx, cands)` binds a single
+  candidate (`bindGapValue`) and advances to the next gap, or — for an ambiguous
+  answer (many candidates) — **pushes a `choice` frame** over the current elicit
+  and suspends on it, collapsing the stack back on the pick. Depth ≤2 today,
+  N-deep by construction; the Stage-2 `alternatives` special case is gone,
+  replaced by a real stack frame (`src/tasks/types.ts`).
+- **Parsing stays outside the interpreter** (`valueKinds.parseSlotAnswer`, which
+  touches the world), so `src/tasks/` is pure over already-produced candidates
+  and fully unit-tested (incl. the depth-2 disambiguation nest, driven by
+  synthetic candidate arrays over a real plan — the seed residents have no
+  colliding names to reach it in an e2e).
+- **The assistant is a thin consumer** (`src/assistant/Assistant.tsx`): its state
+  is a `ResolveState | null` (the stack); a fresh reply calls `beginResolve`, a
+  typed answer parses then `answerResolve`s, and a confirm-chip / picker / choice
+  tap answers with one candidate. All Stage 1/2 surfaces (confirm chip, contact
+  picker, typed name) behave identically.
+- **Task-kind mapping** (`src/tasks/types.ts` doc): the doc's Effect = a
+  capability's propose/commit and Query = brain/selectors already exist; this
+  module implements the **Elicit + Composite** (resolve-a-plan's-inputs) piece.
+
+Deferred (the remaining Stage-3 follow-up): fold plan *execution*
+(`usePlanRunner`), scenarios (`scenarios/runner`), and autopilot onto this one
+interpreter; persist a suspended stack across reload. Stage 5 (LLM cost) is the
+final planned stage.
 
 ### M6 — More device shells & richer visuals
 
