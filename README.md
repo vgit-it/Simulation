@@ -156,4 +156,8 @@ subpath and can be opened on a real phone.
   when the name is ambiguous. **Stage 4** ✅ stakes / consent gate — a
   high-stakes action (send, share) always stops for consent before it commits,
   even on "just do it", while a low-stakes one (a reminder) commits freely.
+  **Stage 3** ✅ the task-stack interpreter — input resolution runs on a pure
+  suspend/resume stack (`src/tasks/`), so an ambiguous answer pushes a
+  disambiguation sub-question and resumes underneath it; the assistant is now a
+  thin consumer of one reusable interpreter.
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

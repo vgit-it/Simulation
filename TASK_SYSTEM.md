@@ -4,14 +4,15 @@
 > **living doc** — expand it as the system's complexity grows. Keep `CLAUDE.md`
 > and `README.md` *pointing here*; do not duplicate the model in them.
 
-**Status:** design / concept, now **landing in stages**. **Stages 1, 2, and 4
-are implemented**: confidence-ranked input resolution + the medium confirm band
+**Status:** design / concept, now **landing in stages**. **Stages 1–4 are
+implemented**: confidence-ranked input resolution + the medium confirm band
 (`src/actions/requirements.ts`), **elicit value-kind pickers + NL parse**
-(`src/actions/valueKinds.ts`, `src/assistant/pickers/`), and the **stakes /
-consent gate** (`stakes` in the action schema → `Proposal.stakes` →
-`usePlanRunner`/`ProposalSheet`). The rest below (the task stack, LLM-cost
-caching) are still design. The engine's other precursors (capabilities, plans,
-scenarios) fold into the unified model as the remaining stages land.
+(`src/actions/valueKinds.ts`, `src/assistant/pickers/`), the **stakes / consent
+gate** (`stakes` → `Proposal.stakes` → `usePlanRunner`/`ProposalSheet`), and the
+**task-stack interpreter** for input resolution (`src/tasks/`). Remaining: Stage
+5 (LLM-cost caching) and the driver-unification follow-up (fold plan execution /
+scenarios / autopilot onto the one interpreter). The engine's other precursors
+fold into the unified model as those land.
 
 ## Why this exists
 
@@ -59,6 +60,18 @@ scenarios) fold into the unified model as the remaining stages land.
   `run(task, inputs) → { done, result } | { suspended, ask, resume }`.
 - **One interpreter** is shared by every driver (assistant, scenarios, autopilot)
   — no more per-driver step-walkers.
+- **✅ Implemented for input resolution** (`src/tasks/`): a pure suspend/resume
+  stack. `beginResolve(plan, ctx, request)` binds confident values and surfaces
+  the first gap as an ask; `answerResolve(state, ctx, cands)` binds a single
+  candidate and advances, or **pushes a `choice` frame** over the current elicit
+  for an ambiguous answer (the suspend → sub-task) and collapses back on the
+  pick (the resume → pop). Depth ≤2 with today's content but N-deep by
+  construction — the `alternatives` special case is gone, replaced by a real
+  frame. Parsing stays outside the interpreter (`valueKinds.parseSlotAnswer`), so
+  it's pure over candidates and unit-tested (incl. the depth-2 nest). The
+  assistant is now a thin consumer. **Still per-driver:** plan *execution*
+  (`usePlanRunner`), scenarios, and autopilot — folding those onto this one
+  interpreter is the remaining Stage-3 follow-up.
 
 ## Input resolution — confidence-ranked, thresholded
 
