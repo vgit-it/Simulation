@@ -133,8 +133,19 @@ export function Assistant() {
     setProposal(propose(s.intent, ctx, s.ids, s.payload));
   }
 
-  /** Record the plan as proposed (telemetry) and open its preview. */
+  /**
+   * Record the plan as proposed (telemetry) and open its preview — except a
+   * single-step plan, which has nothing for a checklist to show: it runs
+   * immediately instead. The non-waivable consent gate inside
+   * `usePlanRunner` (a high-stakes or invalid step always pauses at its own
+   * ProposalSheet) is unaffected either way.
+   */
   function proposePlan(plan: Plan, at: number, person: string) {
+    if (plan.steps.length === 1) {
+      runPlan(plan, 'confirm-once', 0);
+      control.close();
+      return;
+    }
     dispatch({
       type: 'PlanProposed',
       at,
@@ -243,7 +254,11 @@ export function Assistant() {
       setResolver(result.state);
       return;
     }
-    assistantSay("Got it — here's the plan.");
+    assistantSay(
+      result.plan.steps.length === 1
+        ? "Got it — on it."
+        : "Got it — here's the plan.",
+    );
     setResolver(null);
     proposePlan(result.plan, state.clock, session.personId);
   }
