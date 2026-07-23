@@ -1267,6 +1267,47 @@ roadmap above: a second edit channel, and one fewer decision before Run.
   clarify pass's `DEFAULT_SUPERVISION` with the PlanSheet's picker — there is
   now only one supervision value in play.
 
+### Plan-card redesign + single-step auto-run ✅ (current, pre-M5)
+
+Two more trims to the plan preview, on top of the chat-driven editing above:
+
+- **The plan card lost its eyebrow and instruction line.** `PlanSheet` no
+  longer shows "Assistant · Plan" or "N steps … — tap a step to skip it, or
+  tell it what to change" — the goal title and the checklist itself are
+  self-explanatory once you've used the affordances once. The now-unused
+  `appCount` computation went with it.
+- **The chat-edit box is its own floating card**, not embedded in the plan
+  sheet's own bottom section. `PlanSheet` stopped delegating to the generic
+  `<Sheet>` (one flush-bottom panel) and instead manages its own overlay —
+  the same `useMountTransition(open, EXIT.sheet)` + `OverlayLayer` pattern
+  `Assistant.tsx` already used for the ambient surface — rendering two
+  separate stacked cards (`flex flex-col gap-space-sm`): the plan checklist
+  (`rounded-ds-lg bg-surface`) and, below it, an accent-tinted chat card
+  (`rounded-screen bg-[color-mix(in_oklab,var(--sim-accent)_20%,var(--sim-surface))]`)
+  styled to match the invoke surface's own input exactly (`bg-text/90
+  text-bg` pill, `h-12 w-12 bg-accent` send button) instead of the smaller,
+  subtler style it had before. No `PlanSheetProps` changes — `Assistant.tsx`'s
+  call site is untouched.
+- **A single-step plan skips the preview and just runs.** `proposePlan`
+  (`src/assistant/Assistant.tsx`) checks `plan.steps.length === 1` and calls
+  `runPlan` directly instead of opening `PlanSheet` — there's nothing for a
+  one-item checklist to show. `PlanProposed` telemetry (documented as "the
+  PlanSheet was shown") is correctly skipped in that branch since the sheet
+  never shows; `PlanStarted` (inside the runner) still records the run
+  either way, so the activity feed shows it as `Plan · completed · 1 steps`
+  same as any other run. The elicit/confirm resolver loop
+  (`beginResolve`/`answerResolve`) is untouched and runs first regardless —
+  a single-step plan still stops to ask if it genuinely needs a missing slot
+  (e.g. a reminder with no title); it just no longer stops a SECOND time at
+  an empty checklist once it's fully specified. The non-waivable consent
+  gate inside `usePlanRunner` is likewise unaffected: a high-stakes single
+  step (e.g. `send-message`) still pauses at its own `ProposalSheet` for
+  approval — bypassing the plan checklist never bypasses that gate. The
+  hardcoded "Got it — here's the plan." reply (`applyAnswer`) and the mock's
+  own "Here's a N-step plan — review it…" chat text (`mock.ts`'s
+  `respond()`) both became conditional on step count for the same reason —
+  neither sentence is true when there's no preview to review.
+
 ### M6 — More device shells & richer visuals
 
 Watch / glasses / appliance frames reusing the app + theme registries; optional

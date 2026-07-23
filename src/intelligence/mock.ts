@@ -386,7 +386,10 @@ class MockPersonIntelligence implements PersonIntelligence {
       const plan = this.plan(ctx, message);
       if (plan) {
         return {
-          text: `${greeting}Here's a ${plan.steps.length}-step plan — review it and I'll run it.`,
+          text:
+            plan.steps.length === 1
+              ? `${greeting}On it.`
+              : `${greeting}Here's a ${plan.steps.length}-step plan — review it and I'll run it.`,
           plan,
         };
       }
