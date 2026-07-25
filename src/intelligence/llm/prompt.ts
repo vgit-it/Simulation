@@ -2,6 +2,8 @@ import { listCapabilities } from '../../actions';
 import type { ContextBundle } from '../../context';
 import type { Plan } from '../../plans/types';
 import { factsFor, messagesInvolving, plansFor, remindersFor } from '../../state';
+import { unassignedItems } from '../../strands/collect';
+import type { Strand } from '../../strands/types';
 import { contactsOf, resolvePerson } from '../../world';
 import type { ChatTurn } from '../types';
 
@@ -91,15 +93,13 @@ export function buildTools(ctx: ContextBundle): LLMTool[] {
 }
 
 /**
- * Everything the decider is allowed to know, as a deterministic system
- * prompt. Passing `revisingPlan` (the PlanSheet's chat-edit seam) appends a
- * section describing the already-previewed plan under discussion and asks
- * for the same ChatReply/plan contract back, revised.
+ * Everything the decider is allowed to know about the world right now — the
+ * shared body of every request this module builds. Each builder appends its
+ * own response contract after this; keeping the contract OUT of here is what
+ * lets chat, plan revision, and strand consolidation reuse one serialization
+ * without one task's instructions leaking into another's.
  */
-export function buildSystemPrompt(
-  ctx: ContextBundle,
-  revisingPlan?: Plan,
-): string {
+function buildContextLines(ctx: ContextBundle): string[] {
   const { owner, device, state, situation } = ctx;
   const lines: string[] = [];
 
@@ -157,6 +157,22 @@ export function buildSystemPrompt(
   lines.push('', '## Recent assistant plans');
   if (!plans.length) lines.push('- (none)');
   for (const p of plans) lines.push(`- [${p.outcome}] ${p.goal}`);
+
+  return lines;
+}
+
+/**
+ * The chat/plan decider's system prompt: the world context plus the
+ * ChatReply/PlanStep response contract. Passing `revisingPlan` (the
+ * PlanSheet's chat-edit seam) appends a section describing the
+ * already-previewed plan under discussion and asks for the same contract
+ * back, revised.
+ */
+export function buildSystemPrompt(
+  ctx: ContextBundle,
+  revisingPlan?: Plan,
+): string {
+  const lines = buildContextLines(ctx);
 
   if (revisingPlan) {
     lines.push(
@@ -232,5 +248,69 @@ export function buildRevisePlanRequest(
     system: buildSystemPrompt(ctx, plan),
     tools: buildTools(ctx),
     messages: buildMessages([], message),
+  };
+}
+
+/**
+ * The request for a strand consolidation: sort the person's loose activity
+ * into the ongoing threads it belongs to. No tools — consolidation changes no
+ * world state, it only re-describes what already happened, so the model is
+ * given nothing it could act with.
+ */
+export function buildConsolidateRequest(
+  ctx: ContextBundle,
+  current: Strand[],
+): LLMRequest {
+  const pending = unassignedItems(ctx.state, ctx.owner.id, current);
+  const lines = buildContextLines(ctx);
+
+  lines.push(
+    '',
+    '## Current threads (the ongoing efforts this person has going)',
+    current.length ? JSON.stringify(current, null, 2) : '(none yet)',
+    '',
+    '## Unfiled activity (every item below is NOT yet in any thread)',
+    pending.length
+      ? JSON.stringify(
+          pending.map((p) => ({
+            source: p.source,
+            kind: p.kind,
+            at: p.at,
+            text: p.text,
+            refs: p.refs,
+          })),
+          null,
+          2,
+        )
+      : '(nothing new)',
+    '',
+    '## How to respond',
+    'File each unfiled item into the thread it belongs to. Reply with JSON:',
+    '  { "text": string, "strands": Strand[] }',
+    'A Strand is { "id": string, "title": string, "summary": string,',
+    '  "status": "active"|"dormant"|"done", "icon": string, "items": Item[] }.',
+    'An Item is { "source": string, "kind": "note"|"chat"|"plan"|"message"',
+    '  |"reminder"|"photo", "at": number, "text": string, "refs": string[] }.',
+    '',
+    'Rules:',
+    '- Return the COMPLETE set: every current thread plus any new ones. A',
+    '  thread you leave unchanged must still appear, unchanged.',
+    '- NEVER change an existing thread\'s "id", and never drop or reword its',
+    '  existing items — you are adding to a record, not rewriting it.',
+    '- Copy each filed item\'s "source" VERBATIM. It is the dedupe key; a',
+    '  changed source means the item gets folded in again on the next run.',
+    '- Only file items from the unfiled list. Do not invent items.',
+    '- Start a new thread only when an item genuinely belongs to no existing',
+    '  one. Give it a short human title and a fitting emoji icon.',
+    '- A "done" thread is finished — do not file new activity into it.',
+    '- Make "text" one short sentence on what changed, for the user.',
+  );
+
+  return {
+    model: MODEL,
+    max_tokens: MAX_OUTPUT_TOKENS,
+    system: lines.join('\n'),
+    tools: [],
+    messages: buildMessages([], 'Consolidate my threads.'),
   };
 }

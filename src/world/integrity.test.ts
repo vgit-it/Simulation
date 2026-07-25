@@ -25,6 +25,7 @@ describe('world integrity', () => {
             { id: 'd', type: 'phone', name: 'D', theme: 'nope', apps: [] },
           ],
           gallery: [],
+          strands: [],
         },
       },
     };
@@ -56,9 +57,50 @@ describe('world integrity', () => {
               tags: [],
             },
           ],
+          strands: [],
         },
       },
     };
     expect(() => validateIntegrity(broken)).toThrow(/unknown person\/contact "ghost"/);
+  });
+
+  it('flags a thread referencing a photo that is not in the gallery', () => {
+    const broken: World = {
+      design: world.design,
+      apps: {},
+      themes: {},
+      scenarios: {},
+      people: {
+        x: {
+          id: 'x',
+          name: 'X',
+          avatar: '🙂',
+          traits: [],
+          behaviors: {},
+          contacts: [],
+          devices: [],
+          gallery: [],
+          strands: [
+            {
+              id: 'ghost-thread',
+              title: 'Ghost',
+              summary: '',
+              status: 'active',
+              icon: '🧵',
+              items: [
+                {
+                  source: 'seed:ghost-thread:0',
+                  kind: 'photo',
+                  at: 0,
+                  text: 'missing',
+                  refs: ['img-999'],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    expect(() => validateIntegrity(broken)).toThrow(/unknown photo "img-999"/);
   });
 });

@@ -1,3 +1,5 @@
+import { SIM_START } from '../config';
+import type { Strand } from '../strands/types';
 import { parseFrontmatter, parseYaml } from './frontmatter';
 import {
   appDefinitionSchema,
@@ -8,6 +10,7 @@ import {
   profileSchema,
   scenarioSchema,
   themeSchema,
+  threadsFileSchema,
   type AppDefinition,
   type Contact,
   type DesignSystem,
@@ -29,6 +32,9 @@ export interface LoadedPerson extends Profile {
   contacts: Contact[];
   devices: Device[];
   gallery: Photo[];
+  /** Authored seed strands (world/people/<id>/threads.md). Runtime
+   *  consolidation layers over these — see `src/strands`. */
+  strands: Strand[];
 }
 
 export interface World {
@@ -59,6 +65,12 @@ const profileFiles = import.meta.glob('/world/people/*/profile.md', {
 }) as Record<string, string>;
 
 const contactFiles = import.meta.glob('/world/people/*/contacts.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+const threadsFiles = import.meta.glob('/world/people/*/threads.md', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -177,6 +189,25 @@ function buildWorld(): World {
     ).contacts;
   }
 
+  // Authored strands are normalized into the RUNTIME `Strand` shape here, so
+  // there is one type flowing end to end: an undated item anchors to SIM_START,
+  // and every item gains the stable `source` key consolidation dedupes on.
+  const strandsByPerson: Record<string, Strand[]> = {};
+  for (const [path, raw] of Object.entries(threadsFiles)) {
+    const { data } = parseFrontmatter(raw);
+    const file = validate(threadsFileSchema, data, path);
+    strandsByPerson[personIdFromPath(path)] = file.threads.map((strand) => ({
+      ...strand,
+      items: strand.items.map((item, i) => ({
+        source: `seed:${strand.id}:${i}`,
+        kind: item.kind,
+        at: (item.date ?? SIM_START).getTime(),
+        text: item.text,
+        refs: item.refs,
+      })),
+    }));
+  }
+
   const devicesByPerson: Record<string, Device[]> = {};
   for (const [path, raw] of Object.entries(deviceFiles)) {
     const { data } = parseFrontmatter(raw);
@@ -210,6 +241,7 @@ function buildWorld(): World {
       contacts: contactsByPerson[profile.id] ?? [],
       devices: devicesByPerson[profile.id] ?? [],
       gallery: galleryByPerson[profile.id] ?? [],
+      strands: strandsByPerson[profile.id] ?? [],
     };
   }
 
@@ -256,6 +288,27 @@ export function validateIntegrity(w: World): void {
           errors.push(
             `${person.id}: photo "${photo.id}" references unknown person/contact "${id}"`,
           );
+        }
+      }
+    }
+    const strandIds = new Set<string>();
+    for (const strand of person.strands) {
+      if (strandIds.has(strand.id)) {
+        errors.push(`${person.id}: duplicate thread id "${strand.id}"`);
+      }
+      strandIds.add(strand.id);
+      for (const item of strand.items) {
+        for (const ref of item.refs) {
+          if (item.kind === 'photo' && !person.gallery.some((p) => p.id === ref)) {
+            errors.push(
+              `${person.id}: thread "${strand.id}" references unknown photo "${ref}"`,
+            );
+          }
+          if (item.kind === 'message' && !known.has(ref)) {
+            errors.push(
+              `${person.id}: thread "${strand.id}" references unknown person/contact "${ref}"`,
+            );
+          }
         }
       }
     }

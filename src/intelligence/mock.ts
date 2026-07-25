@@ -7,6 +7,8 @@ import {
   type Message,
   type RuntimeState,
 } from '../state';
+import { consolidateDeterministic } from '../strands/consolidate';
+import type { Strand } from '../strands/types';
 import { contactsOf, resolvePerson, sharedPhotoCount, type Photo } from '../world';
 import { matchContacts, requestedShareRecipients } from './shareRecipients';
 import type {
@@ -560,6 +562,25 @@ class MockPersonIntelligence implements PersonIntelligence {
         "I couldn't apply that — try tapping a step to remove it, or name who to add/remove.",
       plan: null,
     };
+  }
+
+  /**
+   * Fold the log into this person's strands, deterministically: each
+   * unassigned item joins the strand whose title/summary it shares content
+   * words (or a referenced photo) with, and whatever nothing claims groups
+   * into new strands. Idempotent — `unassignedItems` skips every `source`
+   * already present, so a second press folds nothing.
+   */
+  async consolidate(
+    ctx: ContextBundle,
+    current: Strand[],
+  ): Promise<{ reply: string; strands: Strand[] }> {
+    const { reply, strands } = consolidateDeterministic(
+      ctx.state,
+      this.personId,
+      current,
+    );
+    return { reply, strands };
   }
 }
 

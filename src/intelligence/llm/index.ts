@@ -1,5 +1,6 @@
 import type { ContextBundle } from '../../context';
 import type { Plan } from '../../plans/types';
+import type { Strand } from '../../strands/types';
 import type { Photo } from '../../world';
 import type {
   ChatReply,
@@ -11,7 +12,11 @@ import type {
   ShareDraft,
   Suggestion,
 } from '../types';
-import { buildLLMRequest, buildRevisePlanRequest } from './prompt';
+import {
+  buildConsolidateRequest,
+  buildLLMRequest,
+  buildRevisePlanRequest,
+} from './prompt';
 
 /**
  * The LLM-backed brain, in DRY-RUN mode: it assembles the exact Anthropic
@@ -80,6 +85,20 @@ class DryRunPersonIntelligence implements PersonIntelligence {
         `sent to revise the plan (system prompt: ${req.system.length} chars, ` +
         `messages: ${req.messages.length}).`,
       plan: null,
+    };
+  }
+
+  async consolidate(
+    ctx: ContextBundle,
+    current: Strand[],
+  ): Promise<{ reply: string; strands: Strand[] }> {
+    const req = buildConsolidateRequest(ctx, current);
+    return {
+      reply:
+        `🔌 LLM dry run — no call was made. This is exactly what would be ` +
+        `sent to consolidate the threads (system prompt: ` +
+        `${req.system.length} chars). Threads left unchanged.`,
+      strands: current,
     };
   }
 }

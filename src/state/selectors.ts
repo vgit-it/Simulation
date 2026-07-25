@@ -1,3 +1,4 @@
+import type { Strand } from '../strands/types';
 import type {
   ChatTurnRecord,
   Fact,
@@ -260,4 +261,17 @@ export function plansFor(state: RuntimeState, personId: string): PlanRun[] {
   return state.plans
     .filter((p) => p.person === personId)
     .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * The most recent CONSOLIDATED strand set for a person, or null if they have
+ * never consolidated. Deliberately log-only (no `world` import, like every
+ * selector here) — the merge with the authored seed lives in `src/strands`,
+ * which is allowed to read both.
+ */
+export function consolidatedStrands(
+  state: RuntimeState,
+  personId: string,
+): Strand[] | null {
+  return state.strands[personId] ?? null;
 }

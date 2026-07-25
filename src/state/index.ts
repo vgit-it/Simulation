@@ -14,6 +14,7 @@ export type { ChatSession, Notification, Thread } from './selectors';
 export {
   chatHistoryFor,
   chatSessionsFor,
+  consolidatedStrands,
   factsFor,
   inboxThreads,
   messagesFrom,

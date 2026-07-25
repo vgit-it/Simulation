@@ -155,6 +155,7 @@ world/                         # CONTENT — authored, no code
   people/<person>/             # six residents (ava, sam, maya, leo, nadia, theo)
     profile.md                 # id, name, avatar, traits, behaviors
     contacts.md                # (optional; contacts are now derived — see below)
+    threads.md                 # (optional) authored seed STRANDS: ongoing efforts + their items
     devices/<device>.md        # type, name, theme, installed apps[]
     files/
       gallery/<id>.svg         # placeholder image
@@ -196,6 +197,12 @@ src/
     usePlanRunner.tsx          # drives a plan through the phone (POV + lifted screen), pausing on action steps
     PlanSheet.tsx              # plan preview: approve the decomposition before it runs
     PlanProgress.tsx           # live execution HUD (checklist, current step)
+  strands/                     # STRANDS: threads of what the user is trying to do (UI says "Threads")
+    types.ts                   # Strand + StrandItem (source-keyed, so consolidation is idempotent)
+    index.ts                   # strandsFor: authored seed + runtime consolidation, merged by id
+    collect.ts                 # log -> CandidateItem[]; unassignedItems + keyword affinity
+    consolidate.ts             # consolidateDeterministic (the mock) + reconcileStrands (model safety net)
+    useConsolidate.ts          # the shared ✨ Consolidate control (async call + one dispatch)
   tasks/                       # Task System interpreter: input resolution as a suspend/resume stack
     types.ts                   # Frame (elicit/choice) + ResolveState + the task-kind mapping
     interpreter.ts             # beginResolve/answerResolve (pure; reuses requirements + valueKinds)
@@ -220,6 +227,7 @@ src/
     contacts/                  # derived contacts graph; tap to select a person (ContactsApp)
     reminders/                 # to-dos from ReminderCreated events + direct add (RemindersApp)
     assistant/                 # conversation list (AssistantApp) + in-app ChatThread read view; tap to open, Continue to resume
+    threads/                   # Threads: strand list + ThreadDetail; ✨ Consolidate (declares no actions)
     settings/                  # Proto Settings: clock/POV/brain/reset/export + the scenario player (SettingsApp)
   App.tsx                      # providers + Stage (owns screen state + ScenarioPlayerProvider, mounts Phone)
   main.tsx                     # React entry
@@ -267,6 +275,44 @@ returns every real person that co-appears in that person's gallery. There is no
 per-person contact list to maintain — the graph is a fact of the content. (An
 authored `contacts.md` is still supported as a fallback label source for ids
 that aren't real people, but the seed doesn't rely on it.)
+
+**Add a thread (strand):** drop a `threads:` entry into
+`world/people/<id>/threads.md` (create the file if the person has none) — an
+`id`, `title`, optional `summary`/`status`/`icon`, and an `items:` list of
+`{kind, text, date?, refs?}`. It appears in that person's Threads app
+automatically. Photo `refs` on a `photo` item and person `refs` on a `message`
+item are integrity-checked at load. The loader normalizes each item into the
+runtime `Strand` shape (`src/strands/types.ts`), anchoring an undated item to
+`SIM_START` and stamping a `seed:<strand>:<i>` **source** key.
+
+**How threads (strands) work:** a Strand is the first durable unit ABOVE a
+single request — "the kitchen renovation", not "share these photos". Two
+layers meet in `strandsFor(state, personId)` (`src/strands`): the authored
+seed above, and the runtime set from a `StrandsConsolidated` event, merged by
+id (so editing `threads.md` still shows for a strand consolidation never
+touched). **✨ Consolidate** (Threads app header, and the Assistant app's)
+calls `brain.consolidate(ctx, current)` — the fifth `PersonIntelligence`
+method — which folds the person's chats, plan runs, sent messages and
+reminders into the strands they belong to and starts new strands for what fits
+nowhere. Every item carries a **`source`** (`chat:`/`plan:`/`msg:`/`rem:`/
+`seed:`), and `unassignedItems` skips any source already filed, so
+consolidation is **idempotent** — pressing the button twice folds nothing.
+The mock assigns by keyword/photo-ref affinity (`consolidateDeterministic`);
+Gemini gets `buildConsolidateRequest` and its output is run through
+`reconcileStrands`, which drops invented items, de-dupes a reused source, and
+re-attaches anything the model dropped — a model may add to the record, never
+erase it.
+
+**Naming:** `Strand` in code, **"Threads"** in the UI. Deliberately different
+words, because `Thread` already means the message-inbox grouping
+(`src/state/selectors.ts`) and `ChatSession` already means an assistant
+conversation.
+
+**Deliberately NOT wired (this stage):** strands are not in `ContextBundle`;
+they don't influence `suggest`/`plan`/`respond`/`revisePlan`; the Threads app
+declares no `actions:` so the assistant's action space is unchanged; and only
+`StrandsConsolidated` ever writes them. The list is restated in
+`src/strands/index.ts`'s doc comment — wiring any of it up is the next stage.
 
 **Add a new app:**
 1. Author `world/apps/<app>.md` (frontmatter: `id`, `name`, `icon`, `category`,
@@ -1307,6 +1353,57 @@ Two more trims to the plan preview, on top of the chat-driven editing above:
   own "Here's a N-step plan — review it…" chat text (`mock.ts`'s
   `respond()`) both became conditional on step count for the same reason —
   neither sentence is true when there's no preview to review.
+
+### Strands — threads of what the user is trying to do ✅ (current, pre-M5)
+
+The first durable unit **above a single request**. Everything else here is
+single-sitting — a `Plan` is one request, a `ChatSession` is one conversation,
+a `Reminder` is a flat leaf, a `ResolveState` dies with its turn — so nothing
+represented "the kitchen renovation" as an ongoing effort that photos,
+messages, plans and reminders accumulate against. A **Strand** does.
+
+- **Two layers, the usual split**: the authored seed
+  (`world/people/<id>/threads.md`, schema'd like any content, authored for Ava,
+  Sam and Maya) and the runtime set carried by one new event,
+  `StrandsConsolidated`. `strandsFor` (`src/strands`) merges them **by id**, so
+  a consolidation overrides a strand in place, appends new ones, and leaves a
+  seed strand it never touched reflecting its file. The merge lives in
+  `src/strands` rather than `src/state/selectors.ts` because it reads both
+  `world` and `state` — the selectors stay world-free
+  (`consolidatedStrands` is the log-only half).
+- **Consolidation is a brain method**: `consolidate(ctx, current)` on
+  `PersonIntelligence` (per principle 3 — segregating activity into efforts is
+  smart, so it doesn't get hardcoded in a component). The **mock** is
+  deterministic keyword/photo-ref affinity against each strand's
+  title+summary, grouping what nothing claims into new strands with stable ids
+  (`consolidateDeterministic`); **dry-run** shows the assembled payload;
+  **Gemini** gets `buildConsolidateRequest` and a real segmentation.
+- **Idempotent by construction**: every item carries a `source`
+  (`seed:`/`chat:`/`plan:`/`msg:`/`rem:`) and `unassignedItems` skips anything
+  already filed — pressing Consolidate twice folds nothing and says so. This
+  matters because the button is the whole interaction.
+- **A model may add to the record, never erase it**: `reconcileStrands` is the
+  Gemini safety net (the role `withRequestedShareRecipients` plays for plans) —
+  it drops items whose `source` isn't real, keeps a reused source only once,
+  re-attaches items the model dropped, and restores a strand it forgot. Titles,
+  status, icons and the actual filing stay the model's call. An unparseable
+  reply leaves the strands exactly as they were.
+- **Surface**: a **Threads** app (`world/apps/threads.md` + one registry line,
+  installed on all six phones) listing strands with status/summary/item count,
+  tapping into a chronological `ThreadDetail` with photo thumbnails and
+  resolved names. **✨ Consolidate** sits in its header and in the Assistant
+  app's, both from one `useConsolidate` hook.
+- **Deliberately NOT wired.** Strands aren't in `ContextBundle`, don't touch
+  `suggest`/`plan`/`respond`/`revisePlan`, and the Threads app declares no
+  actions, so `viableCapabilities` is unchanged. This is a standing,
+  inspectable data layer — the substrate for a dedicated thread interface —
+  and the boundary is enumerated in `src/strands/index.ts` plus asserted in
+  `strands.test.ts`.
+
+Deferred: a thread's own interface (drive work FROM a strand); strands as
+brain context (so plans know which effort they serve); logging the
+strand↔plan/chat link at creation rather than recovering it at consolidation;
+per-item dismissal; authored `status` transitions.
 
 ### M6 — More device shells & richer visuals
 

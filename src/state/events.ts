@@ -6,6 +6,8 @@
  * just "save the log" and time-travel/replay comes for free.
  */
 
+import type { Strand } from '../strands/types';
+
 /** A message (or share) sent from one person to others. */
 export interface MessageSentEvent {
   type: 'MessageSent';
@@ -156,6 +158,23 @@ export interface ConsentDecisionEvent {
   decision: 'granted' | 'denied';
 }
 
+/**
+ * The person's strands ("threads" in the UI) were re-consolidated — the brain
+ * folded everything that has happened into the ongoing efforts it belongs to.
+ * Carries the FULL merged set (last write wins), because consolidation is a
+ * whole-set operation: existing strands keep their id and gain items, new
+ * efforts appear. Layered over the authored seed by `strandsFor`
+ * (`src/strands`), so an untouched authored strand still reflects its file.
+ */
+export interface StrandsConsolidatedEvent {
+  type: 'StrandsConsolidated';
+  at: number;
+  person: string;
+  strands: Strand[];
+  /** How many NEW items this run folded in — telemetry for the export. */
+  sources: number;
+}
+
 export type SimEvent =
   | MessageSentEvent
   | FactRecordedEvent
@@ -169,7 +188,8 @@ export type SimEvent =
   | PlanStartedEvent
   | PlanStepCompletedEvent
   | PlanCompletedEvent
-  | ConsentDecisionEvent;
+  | ConsentDecisionEvent
+  | StrandsConsolidatedEvent;
 
 let counter = 0;
 /** Deterministic-ish unique id for events/proposals (stable within a session). */

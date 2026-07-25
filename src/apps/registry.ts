@@ -5,6 +5,7 @@ import { MessagesApp } from './messages/MessagesApp';
 import { ContactsApp } from './contacts/ContactsApp';
 import { RemindersApp } from './reminders/RemindersApp';
 import { AssistantApp } from './assistant/AssistantApp';
+import { ThreadsApp } from './threads/ThreadsApp';
 import { SettingsApp } from './settings/SettingsApp';
 
 /**
@@ -17,5 +18,6 @@ export const appRegistry: Record<string, ComponentType<AppScreenProps>> = {
   contacts: ContactsApp,
   reminders: RemindersApp,
   assistant: AssistantApp,
+  threads: ThreadsApp,
   settings: SettingsApp,
 };

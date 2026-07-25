@@ -6,6 +6,7 @@ import {
   plansFor,
   useStore,
 } from '../../state';
+import { useConsolidate } from '../../strands/useConsolidate';
 import { AppHeader, EmptyState, PillButton } from '../../ui';
 import { resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
@@ -39,6 +40,10 @@ export function AssistantApp({ owner }: AppScreenProps) {
   );
   const activity = messagesFrom(state, owner.id);
   const planRuns = plansFor(state, owner.id);
+  // Second entry point for Consolidate — the Threads app is where you SEE the
+  // result, but this app is the assistant's memory, so the verb belongs here
+  // too. Both call sites share `useConsolidate`.
+  const consolidate = useConsolidate();
 
   const [openId, setOpenId] = useState<string | null>(null);
   const openSession = openId
@@ -59,10 +64,26 @@ export function AssistantApp({ owner }: AppScreenProps) {
     <div className="flex h-full flex-col bg-bg">
       <AppHeader
         title="Assistant"
-        actions={<PillButton onClick={() => control.open()}>✨ New</PillButton>}
+        actions={
+          <>
+            <PillButton
+              onClick={consolidate.run}
+              disabled={consolidate.running}
+            >
+              {consolidate.running ? '🧵 Working…' : '🧵 Consolidate'}
+            </PillButton>
+            <PillButton onClick={() => control.open()}>✨ New</PillButton>
+          </>
+        }
       />
 
       <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">
+        {consolidate.lastReply && (
+          <p className="type-caption mb-space-md text-center text-muted">
+            🧵 {consolidate.lastReply}
+          </p>
+        )}
+
         {sessions.length === 0 ? (
           <EmptyState
             icon="✨"

@@ -106,6 +106,37 @@ export const contactsFileSchema = z.object({
   contacts: z.array(contactSchema).default([]),
 });
 
+/**
+ * One authored item of a strand (see `src/strands/types.ts`). `date` is
+ * optional — an authored item with no date is anchored to SIM_START at load,
+ * where it also gains its stable `source` key.
+ */
+export const strandItemSchema = z.object({
+  kind: z
+    .enum(['note', 'chat', 'plan', 'message', 'reminder', 'photo'])
+    .default('note'),
+  text: z.string(),
+  date: z.coerce.date().optional(),
+  refs: z.array(z.string()).default([]),
+});
+export type StrandItemSpec = z.infer<typeof strandItemSchema>;
+
+/** An authored strand: a thread of what this person is trying to do. */
+export const strandSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  summary: z.string().default(''),
+  status: z.enum(['active', 'dormant', 'done']).default('active'),
+  icon: z.string().default('🧵'),
+  items: z.array(strandItemSchema).default([]),
+});
+export type StrandSpec = z.infer<typeof strandSchema>;
+
+/** `world/people/<id>/threads.md` — the strands this person has running. */
+export const threadsFileSchema = z.object({
+  threads: z.array(strandSchema).default([]),
+});
+
 export const deviceSchema = z.object({
   id: z.string(),
   type: z.string(),
