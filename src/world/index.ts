@@ -18,6 +18,8 @@ export type {
   Device,
   Scenario,
   ScenarioStep,
+  StrandItemSpec,
+  StrandSpec,
   Theme,
   TypeRole,
   Photo,

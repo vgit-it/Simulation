@@ -3,6 +3,6 @@ id: sam-phone
 type: phone
 name: Sam's Phone
 theme: sunrise
-apps: [photos, messages, contacts, assistant, settings]
+apps: [photos, messages, contacts, assistant, threads, settings]
 ---
 Sam Ruiz's primary phone.

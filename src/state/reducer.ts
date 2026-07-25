@@ -1,4 +1,5 @@
 import { SIM_START } from '../config';
+import type { Strand } from '../strands/types';
 import type { SimEvent } from './events';
 
 /** Derived record of a sent message. */
@@ -69,6 +70,7 @@ export interface RuntimeState {
   chats: ChatTurnRecord[]; // assistant-chat turns, in order
   reads: Record<string, Record<string, number>>; // personId -> threadKey -> last read at
   notificationsClearedAt: Record<string, number>; // personId -> shade-cleared watermark
+  strands: Record<string, Strand[]>; // personId -> most recent consolidated set
 }
 
 export function freshState(): RuntimeState {
@@ -82,6 +84,7 @@ export function freshState(): RuntimeState {
     chats: [],
     reads: {},
     notificationsClearedAt: {},
+    strands: {},
   };
 }
 
@@ -225,6 +228,13 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
         plans: state.plans.map((p) =>
           p.planId === event.planId ? { ...p, outcome: event.outcome } : p,
         ),
+      };
+    case 'StrandsConsolidated':
+      // Whole-set replace: the brain received the current strands and returned
+      // the merged result, so the newest consolidation IS this person's set.
+      return {
+        ...state,
+        strands: { ...state.strands, [event.person]: event.strands },
       };
     case 'AppOpened':
       return state; // no derived change yet

@@ -4,6 +4,10 @@ import { GEMINI_FALLBACK_MODELS } from '../../config';
 import type { ContextBundle } from '../../context';
 import { uid } from '../../state';
 import type { Plan, PlanStep } from '../../plans/types';
+import { assignedSources } from '../../strands';
+import { unassignedItems } from '../../strands/collect';
+import { reconcileStrands } from '../../strands/consolidate';
+import type { Strand } from '../../strands/types';
 import type { Photo } from '../../world';
 import { requestedShareRecipients } from '../shareRecipients';
 import type {
@@ -16,7 +20,12 @@ import type {
   ShareDraft,
   Suggestion,
 } from '../types';
-import { buildLLMRequest, buildRevisePlanRequest, type LLMRequest } from './prompt';
+import {
+  buildConsolidateRequest,
+  buildLLMRequest,
+  buildRevisePlanRequest,
+  type LLMRequest,
+} from './prompt';
 
 /**
  * The REAL LLM brain, backed by the Google Gemini API. This is the M5 tail the
@@ -302,6 +311,58 @@ export function withRequestedShareRecipients(
   return narrowed ? { ...reply, plan: { ...reply.plan, steps } } : reply;
 }
 
+const strandItemSchema = z.object({
+  source: z.string(),
+  kind: z
+    .enum(['note', 'chat', 'plan', 'message', 'reminder', 'photo'])
+    .catch('note'),
+  at: z.number(),
+  text: z.string(),
+  refs: z.array(z.string()).default([]),
+});
+
+const consolidateReplySchema = z.object({
+  text: z.string().default(''),
+  strands: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      summary: z.string().default(''),
+      status: z.enum(['active', 'dormant', 'done']).catch('active'),
+      icon: z.string().default('🧵'),
+      items: z.array(strandItemSchema).default([]),
+    }),
+  ),
+});
+
+/**
+ * Parse a consolidation reply, then RECONCILE it against what actually
+ * happened (`reconcileStrands`) so a sloppy generation can't erase a thread or
+ * invent activity. Anything unparseable leaves the strands exactly as they
+ * were — a failed consolidation must be a no-op, never a partial rewrite of
+ * the user's record — and never surfaces raw JSON.
+ */
+export function parseConsolidateReply(
+  text: string,
+  current: Strand[],
+  allowed: Set<string>,
+): { reply: string; strands: Strand[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripFence(text));
+  } catch {
+    return { reply: PARSE_FAILURE_NOTICE, strands: current };
+  }
+  const result = consolidateReplySchema.safeParse(parsed);
+  if (!result.success) return { reply: PARSE_FAILURE_NOTICE, strands: current };
+
+  const strands = reconcileStrands(result.data.strands, current, allowed);
+  return {
+    reply: result.data.text || 'Threads updated.',
+    strands,
+  };
+}
+
 class GeminiPersonIntelligence implements PersonIntelligence {
   constructor(
     readonly personId: string,
@@ -371,6 +432,40 @@ class GeminiPersonIntelligence implements PersonIntelligence {
           err instanceof Error ? err.message : String(err)
         }`,
         plan: null,
+      };
+    }
+  }
+
+  async consolidate(
+    ctx: ContextBundle,
+    current: Strand[],
+  ): Promise<{ reply: string; strands: Strand[] }> {
+    const pending = unassignedItems(ctx.state, this.personId, current);
+    if (pending.length === 0) {
+      // Nothing to file — don't spend a call to be told so.
+      return { reply: 'Nothing new to fold in.', strands: current };
+    }
+    // The only sources that may appear in the reply: what's already filed,
+    // plus what's waiting to be. Anything else is invented.
+    const allowed = new Set([
+      ...assignedSources(current),
+      ...pending.map((p) => p.source),
+    ]);
+    try {
+      const req = buildConsolidateRequest(ctx, current);
+      const body = toGeminiRequest(req);
+      const text = await callGeminiWithFallback(
+        body,
+        this.apiKey(),
+        modelChain(this.model()),
+      );
+      return parseConsolidateReply(text, current, allowed);
+    } catch (err) {
+      return {
+        reply: `Sorry — I couldn't consolidate right now. ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        strands: current,
       };
     }
   }

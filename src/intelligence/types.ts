@@ -1,5 +1,6 @@
 import type { ContextBundle } from '../context';
 import type { Plan } from '../plans/types';
+import type { Strand } from '../strands/types';
 import type { Photo } from '../world';
 
 export interface ResolvedPerson {
@@ -117,6 +118,21 @@ export interface PersonIntelligence {
     plan: Plan,
     message: string,
   ): Promise<{ reply: string; plan: Plan | null }>;
+  /**
+   * Fold everything that has happened for this person into their STRANDS —
+   * the ongoing threads of what they're trying to do (`src/strands`).
+   *
+   * Receives the CURRENT set (authored seed + any previous consolidation) and
+   * returns the MERGED set: existing strands keep their `id` and gain items,
+   * genuinely new efforts become new strands. Must be IDEMPOTENT — an item
+   * whose `source` already appears anywhere in `current` is never folded in
+   * again, so pressing Consolidate repeatedly is a no-op. Async for the same
+   * reason `respond` is; a real provider awaits the network.
+   */
+  consolidate(
+    ctx: ContextBundle,
+    current: Strand[],
+  ): Promise<{ reply: string; strands: Strand[] }>;
 }
 
 /**

@@ -64,6 +64,7 @@ world/                     # CONTENT — authored, no code
   people/<person>/         # six residents, each a full person
     profile.md             # who they are
     devices/phone.md       # a device: theme + installed apps
+    threads.md             # ongoing efforts ("strands") + the items filed into them
     files/gallery/         # img-00N.svg + img-00N.yaml (metadata sidecar)
   themes/<theme>.md        # visual identity as tokens (one per resident)
   scenarios/<scenario>.md  # scripted step sequences (clock/focus/share)
@@ -75,6 +76,7 @@ src/
   context/                 # assembleContext → bundle a decider consumes
   actions/                 # propose/commit pipeline + approve/send sheet
   assistant/               # persistent ✨ assistant: suggestions + activity
+  strands/                 # "Threads": ongoing efforts, seeded + consolidated from the log
   scenarios/               # pure step runner (resolveStep) + ScenarioBar player UI
   phone/                   # device frame, status bar, lock/home, router (controlled screen), dev bar
   apps/                    # app registry + Photos / Messages / Contacts renderers
@@ -96,6 +98,9 @@ the embodied POV (`src/session`), renders apps, and apps ask the person's
 - **Add an app to a device**: list its id under `apps:` in the device file
   (the app needs a definition in `world/apps/` and a renderer registered in
   `src/apps/registry.ts`).
+- **Add a thread**: add an entry under `threads:` in a person's `threads.md`.
+  It shows up in their **Threads** app; **✨ Consolidate** there folds new
+  activity from the log into the thread it belongs to.
 
 Every world file is schema-validated on load, so a malformed file fails loudly
 with the file path and the exact problem.

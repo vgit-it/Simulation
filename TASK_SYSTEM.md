@@ -12,7 +12,10 @@ gate** (`stakes` → `Proposal.stakes` → `usePlanRunner`/`ProposalSheet`), and
 **task-stack interpreter** for input resolution (`src/tasks/`). A Composite can
 now also be **revised after preview from a second chat channel**
 (`PersonIntelligence.revisePlan`), alongside tap-to-strike, and the PlanSheet's
-supervision picker is gone — every plan runs `confirm-once`. Remaining: Stage 5
+supervision picker is gone — every plan runs `confirm-once`. **Strands**
+(`src/strands/`) add the first unit whose lifetime exceeds one interpreter run
+— see "Strands" below; they are a standing data layer, not yet an input to the
+loop. Remaining: Stage 5
 (LLM-cost caching) and the driver-unification follow-up (fold plan execution /
 scenarios / autopilot onto the one interpreter). The engine's other precursors
 fold into the unified model as those land.
@@ -245,6 +248,39 @@ fold into the unified model as those land.
 - Both produce the same **Task** shape and run through the **same interpreter** —
   the mock/offline guarantee is preserved while still designing for Gemini.
 
+## Strands — a Composite whose lifetime exceeds one interpreter run
+
+Every unit above is scoped to **one request**: a Composite runs, its stack
+unwinds, and it's over. A **Strand** (`src/strands/`, "Threads" in the UI) is
+the first durable thing *above* that — an ongoing effort ("the kitchen
+renovation") that requests happen *inside*. In this doc's vocabulary it is a
+**Composite with no interpreter attached**: an arrangement of things done and
+still to do, persisted, that outlives every run that contributed to it.
+
+- **Where it comes from.** Two layers, mirroring authored-seed vs runtime
+  state: `world/people/<id>/threads.md` for what the person already has going,
+  and a `StrandsConsolidated` event carrying the merged set. `strandsFor`
+  merges them by id.
+- **Consolidation is a Query, not an Effect.** `PersonIntelligence.consolidate`
+  derives a re-description of activity that already happened; it commits no
+  world change and passes no consent gate. That's why it needs no stakes and
+  no tools — the request built by `buildConsolidateRequest` deliberately ships
+  an empty tool catalog, so the model has nothing to act with.
+- **Idempotence is the contract.** Every item carries a `source` key and a run
+  only folds sources not already filed. The button can be pressed any number
+  of times; the second press is a no-op. This is the same discipline
+  `dueAutopilotActions` uses as its loop guard.
+- **A model may add to the record, never erase it.** `reconcileStrands` is the
+  deterministic floor under model output — the strand-shaped analogue of
+  `withRequestedShareRecipients`. Filing, titles and status stay the model's
+  judgement; existence and provenance don't.
+- **Not yet in the loop.** Strands are deliberately absent from
+  `ContextBundle` and from `suggest`/`plan`/`respond`/`revisePlan`, and the
+  Threads app declares no actions. Folding them in — so a plan knows which
+  effort it serves, and a strand can *drive* work rather than only record it —
+  is the next stage, and the natural place for this doc's **scoped consent
+  grants** idea to land (a grant scoped to a strand, not just a session).
+
 ## Data flow
 
 - **Results return up the task stack** — a sub-task hands its value to whoever
@@ -340,3 +376,9 @@ catalog grow. (Call *count* is already ~1 per novel request; keep it that way.)
 - **Retrieval ranking** — the volatile context slice uses deterministic signals
   (selection, named entities, recency) today; a smarter, still-offline relevance
   ranker is a later refinement.
+- **Strands in the loop** — strands are a standing data layer today (see
+  "Strands" above). Open: whether a strand enters `ContextBundle` so a plan
+  knows which effort it serves; whether a request can be *started from* a
+  strand rather than only recorded into one; and whether the strand↔plan/chat
+  link should be logged when the work happens instead of recovered later by
+  consolidation.
