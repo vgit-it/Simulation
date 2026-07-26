@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { EXIT, OverlayLayer, useMountTransition } from '../ui';
+import {
+  EXIT,
+  LAYER,
+  OverlayLayer,
+  useBackHandler,
+  useDrag,
+  useMountTransition,
+} from '../ui';
 import { getApp } from '../world';
+
+/** Px of downward drag on the grabber that counts as "fully dragged". */
+const DISMISS_DRAG_EXTENT = 100;
 import type { Plan, Supervision } from './types';
 
 interface PlanSheetProps {
@@ -48,6 +58,13 @@ export function PlanSheet({
   const [chatText, setChatText] = useState('');
 
   const { mounted, closing } = useMountTransition(plan !== null, EXIT.sheet);
+  useBackHandler(plan !== null, onCancel, LAYER.overlay);
+  const drag = useDrag({
+    axis: 'y',
+    direction: 1,
+    extent: DISMISS_DRAG_EXTENT,
+    onCommit: onCancel,
+  });
 
   if (!mounted || !shown) return null;
 
@@ -87,16 +104,24 @@ export function PlanSheet({
           }`}
         />
 
-        <div className="relative flex flex-col gap-space-sm p-space-md">
+        <div
+          style={drag.dragging ? { transform: `translateY(${drag.offset}px)` } : undefined}
+          className={`relative flex flex-col gap-space-sm p-space-md ${
+            drag.dragging ? '' : closing ? 'animate-slide-down' : 'animate-slide-up'
+          }`}
+        >
           {/* Plan card: the step checklist. */}
-          <div
-            className={`flex max-h-[60vh] flex-col rounded-ds-lg bg-surface p-space-xl shadow-sheet ${
-              closing ? 'animate-slide-down' : 'animate-slide-up'
-            }`}
-          >
+          <div className="flex max-h-[60vh] flex-col rounded-ds-lg bg-surface p-space-xl shadow-sheet">
+            <span
+              {...drag.handlers}
+              aria-hidden
+              className="-mt-space-sm mb-space-sm block h-6 touch-none"
+            >
+              <span className="mx-auto mt-2 block h-1 w-10 rounded-full bg-text/20" />
+            </span>
             <h2 className="type-title shrink-0">{shown.goal}</h2>
 
-            <ol className="mt-space-md flex min-h-0 flex-1 flex-col gap-space-sm overflow-y-auto">
+            <ol className="mt-space-md flex min-h-0 flex-1 flex-col gap-space-sm overflow-y-auto overscroll-y-contain">
               {shown.steps.map((step, i) => {
                 const app = getApp(step.app);
                 const off = skipped.has(step.id);
@@ -156,11 +181,7 @@ export function PlanSheet({
 
           {/* Chat card: revise the plan in place, styled like the ambient
               assistant surface's own input. */}
-          <div
-            className={`rounded-screen bg-[color-mix(in_oklab,var(--sim-accent)_20%,var(--sim-surface))] p-space-lg shadow-sheet ${
-              closing ? 'animate-slide-down' : 'animate-slide-up'
-            }`}
-          >
+          <div className="rounded-screen bg-[color-mix(in_oklab,var(--sim-accent)_20%,var(--sim-surface))] p-space-lg shadow-sheet">
             {editing ? (
               <div
                 aria-label="Updating the plan"
@@ -188,6 +209,8 @@ export function PlanSheet({
                 onChange={(e) => setChatText(e.target.value)}
                 placeholder="Change something — “just Sam”, “skip the reminder”…"
                 disabled={editing}
+                enterKeyHint="send"
+                autoCapitalize="sentences"
                 className="type-body min-w-0 flex-1 rounded-ds-full bg-text/90 px-space-lg py-3 text-bg placeholder:text-bg/50 focus:outline-none disabled:opacity-60"
               />
               <button

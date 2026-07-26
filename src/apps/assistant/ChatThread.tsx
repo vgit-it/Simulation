@@ -49,7 +49,7 @@ export function ChatThread({ sessionId, title, ownerId, onBack }: ChatThreadProp
         <AppHeader title={title} onBack={onBack} backLabel="Assistant" />
       </div>
 
-      <div className="flex flex-1 flex-col gap-space-md overflow-y-auto px-space-lg py-space-lg">
+      <div className="flex flex-1 flex-col gap-space-md overflow-y-auto overscroll-y-contain px-space-lg py-space-lg">
         {turns.map((t, i) => {
           const mine = t.role === 'user';
           return (

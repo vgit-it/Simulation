@@ -25,7 +25,7 @@ export function ContactPicker({ ownerId, onPick }: PickerProps) {
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   return (
-    <div className="mb-space-md flex max-h-48 flex-col gap-1 overflow-y-auto rounded-card bg-surface/80 p-space-sm ring-1 ring-text/10 backdrop-blur">
+    <div className="mb-space-md flex max-h-48 flex-col gap-1 overflow-y-auto overscroll-y-contain rounded-card bg-surface/80 p-space-sm ring-1 ring-text/10 backdrop-blur">
       {contacts.map((c) => {
         const on = picked.includes(c.id);
         return (

@@ -70,6 +70,7 @@ export interface RuntimeState {
   chats: ChatTurnRecord[]; // assistant-chat turns, in order
   reads: Record<string, Record<string, number>>; // personId -> threadKey -> last read at
   notificationsClearedAt: Record<string, number>; // personId -> shade-cleared watermark
+  dismissedNotifications: Record<string, string[]>; // personId -> swiped-away notification ids
   strands: Record<string, Strand[]>; // personId -> most recent consolidated set
 }
 
@@ -84,6 +85,7 @@ export function freshState(): RuntimeState {
     chats: [],
     reads: {},
     notificationsClearedAt: {},
+    dismissedNotifications: {},
     strands: {},
   };
 }
@@ -149,6 +151,17 @@ function apply(state: RuntimeState, event: SimEvent): RuntimeState {
           ),
         },
       };
+    case 'NotificationDismissed': {
+      const mine = state.dismissedNotifications[event.person] ?? [];
+      if (mine.includes(event.id)) return state; // idempotent
+      return {
+        ...state,
+        dismissedNotifications: {
+          ...state.dismissedNotifications,
+          [event.person]: [...mine, event.id],
+        },
+      };
+    }
     case 'ChatMessage':
       return {
         ...state,

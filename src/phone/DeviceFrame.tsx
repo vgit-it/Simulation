@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { countTap } from '../state';
-import { OverlayPortalContext } from '../ui';
+import { OverlayPortalContext, type DragHandlers } from '../ui';
 import { StatusBar } from './StatusBar';
 
 interface DeviceFrameProps {
@@ -15,6 +15,8 @@ interface DeviceFrameProps {
   notificationCount?: number;
   /** Status-bar tap → pull the notification shade down (unlocked only). */
   onOpenShade?: () => void;
+  /** Status-bar drag-down → pull the shade down, following the finger. */
+  shadeDragHandlers?: DragHandlers;
 }
 
 /**
@@ -29,6 +31,7 @@ export function DeviceFrame({
   overlay,
   notificationCount,
   onOpenShade,
+  shadeDragHandlers,
 }: DeviceFrameProps) {
   const [portalEl, setPortalEl] = useState<HTMLDivElement | null>(null);
   return (
@@ -46,10 +49,11 @@ export function DeviceFrame({
         className="relative flex h-full w-full flex-col overflow-hidden rounded-screen bg-bg font-sim text-text transition-colors duration-500"
       >
         {/* Galaxy-style centered punch-hole camera */}
-        <div className="absolute left-1/2 top-3 z-20 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-white/5" />
+        <div className="pointer-events-none absolute left-1/2 top-3 z-20 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-white/5" />
         <StatusBar
           notificationCount={notificationCount}
           onOpenShade={onOpenShade}
+          dragHandlers={shadeDragHandlers}
         />
         <OverlayPortalContext.Provider value={portalEl}>
           {/* Screens are layered (home base, app, lock) and each manages its

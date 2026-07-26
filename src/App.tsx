@@ -4,6 +4,7 @@ import { useAutopilot } from './autopilot';
 import { SessionProvider } from './session';
 import { StoreProvider } from './state';
 import { Phone, type Screen } from './phone/Phone';
+import { BackProvider } from './ui';
 import { ScreenProvider } from './phone/screen';
 import { ScenarioPlayerProvider } from './scenarios/player';
 
@@ -22,13 +23,15 @@ function Stage() {
 
   return (
     <ScreenProvider value={{ screen, setScreen }}>
-      <ScenarioPlayerProvider>
-        <AssistantControlProvider>
-          <div className="flex min-h-full flex-col items-center justify-center bg-[#05070d] p-4">
-            <Phone screen={screen} onScreenChange={setScreen} />
-          </div>
-        </AssistantControlProvider>
-      </ScenarioPlayerProvider>
+      <BackProvider>
+        <ScenarioPlayerProvider>
+          <AssistantControlProvider>
+            <div className="flex min-h-full flex-col items-center justify-center bg-[#05070d] p-4">
+              <Phone screen={screen} onScreenChange={setScreen} />
+            </div>
+          </AssistantControlProvider>
+        </ScenarioPlayerProvider>
+      </BackProvider>
     </ScreenProvider>
   );
 }

@@ -11,9 +11,11 @@ interface AppHeaderProps {
 
 /**
  * The two OS header styles, One UI-fashion. The large-title header (Photos,
- * Messages, Contacts) is the expanded collapsing app bar: actions ride the
- * top edge while the title sits centered and low in a tall area, pushing
- * content into thumb reach. The compact header (detail/thread views) is an
+ * Messages, Contacts) is a tall expanded title bar: actions ride the top edge
+ * while the title sits centered and low in a tall area, pushing content into
+ * thumb reach. It does NOT collapse on scroll yet — real One UI shrinks this
+ * into a compact bar as the list scrolls, deferred here (see "Android
+ * interaction fidelity"). The compact header (detail/thread views) is an
  * icon-only back arrow with a left-aligned title.
  */
 export function AppHeader({ title, onBack, backLabel, actions }: AppHeaderProps) {

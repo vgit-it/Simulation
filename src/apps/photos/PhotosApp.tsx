@@ -5,7 +5,16 @@ import { assembleContext } from '../../context';
 import { intelligenceFor } from '../../intelligence';
 import { useSession } from '../../session';
 import { useNow, useStore } from '../../state';
-import { AppHeader, EmptyState, PillButton, useMountTransition } from '../../ui';
+import {
+  AppHeader,
+  EmptyState,
+  LAYER,
+  PillButton,
+  SelectionBar,
+  useBackHandler,
+  useLongPress,
+  useMountTransition,
+} from '../../ui';
 import type { Photo } from '../../world';
 import type { AppScreenProps } from '../types';
 import { PhotoDetail } from './PhotoDetail';
@@ -42,6 +51,16 @@ export function PhotosApp({ owner }: AppScreenProps) {
   // Leaving the app abandons the selection.
   useEffect(() => () => setSelection(null), [setSelection]);
 
+  const allIds = useMemo(
+    () => groups.flatMap((g) => g.photos.map((p) => p.id)),
+    [groups],
+  );
+
+  // Back pops the detail view first, then exits select mode — Android's
+  // "back out of what's on top" ordering (subview beats mode).
+  useBackHandler(openPhoto !== null, () => setOpenPhoto(null), LAYER.subview);
+  useBackHandler(selecting, exitSelect, LAYER.mode);
+
   if (openPhoto) {
     return <PhotoDetail photo={openPhoto} onBack={() => setOpenPhoto(null)} />;
   }
@@ -60,6 +79,23 @@ export function PhotosApp({ owner }: AppScreenProps) {
     );
   }
 
+  // Long-press a tile: enter select mode with that one tile already picked —
+  // Android's contextual-selection gesture.
+  function enterSelectWith(id: string) {
+    setSelecting(true);
+    setSelection({ app: 'photos', kind: 'photos', ids: [id] });
+  }
+
+  const allSelected = allIds.length > 0 && allIds.every((id) => picked.has(id));
+
+  function selectAll() {
+    setSelection({ app: 'photos', kind: 'photos', ids: allIds });
+  }
+
+  function deselectAll() {
+    setSelection(null);
+  }
+
   function shareSelected() {
     const photos = owner.gallery.filter((p) => picked.has(p.id));
     if (!photos.length) return;
@@ -72,18 +108,24 @@ export function PhotosApp({ owner }: AppScreenProps) {
 
   return (
     <div className="relative flex h-full flex-col bg-bg">
-      <AppHeader
-        title="Photos"
-        actions={
-          selecting ? (
-            <PillButton onClick={exitSelect}>Cancel</PillButton>
-          ) : (
+      {selecting ? (
+        <SelectionBar
+          count={picked.size}
+          allSelected={allSelected}
+          onClose={exitSelect}
+          onSelectAll={selectAll}
+          onDeselectAll={deselectAll}
+        />
+      ) : (
+        <AppHeader
+          title="Photos"
+          actions={
             <PillButton onClick={() => setSelecting(true)}>Select</PillButton>
-          )
-        }
-      />
+          }
+        />
+      )}
 
-      <div className="flex-1 overflow-y-auto px-space-lg pb-24">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-lg pb-24">
         {groups.length === 0 && (
           <EmptyState
             icon="📷"
@@ -101,35 +143,16 @@ export function PhotosApp({ owner }: AppScreenProps) {
                 const isPicked = picked.has(photo.id);
                 const delay = Math.min(tileIndex++, 12) * 25;
                 return (
-                  <button
+                  <PhotoTile
                     key={photo.id}
-                    onClick={() =>
-                      selecting ? toggle(photo.id) : setOpenPhoto(photo)
-                    }
-                    className="relative aspect-square animate-rise overflow-hidden rounded-ds-xs bg-surface transition-transform duration-150 active:scale-[0.97]"
-                    style={{ animationDelay: `${delay}ms` }}
-                  >
-                    <img
-                      src={photo.url}
-                      alt={photo.location}
-                      className={`h-full w-full object-cover transition-opacity duration-200 ${
-                        selecting && !isPicked ? 'opacity-60' : ''
-                      }`}
-                    />
-                    {selecting && (
-                      <span
-                        // Re-keying re-fires the pop each time the state flips.
-                        key={isPicked ? 'on' : 'off'}
-                        className={`absolute right-1.5 top-1.5 flex h-5 w-5 animate-pop items-center justify-center rounded-full border text-[11px] ${
-                          isPicked
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-white/70 bg-black/30 text-transparent'
-                        }`}
-                      >
-                        ✓
-                      </span>
-                    )}
-                  </button>
+                    photo={photo}
+                    isPicked={isPicked}
+                    selecting={selecting}
+                    delay={delay}
+                    onOpen={() => setOpenPhoto(photo)}
+                    onToggle={() => toggle(photo.id)}
+                    onLongPress={() => enterSelectWith(photo.id)}
+                  />
                 );
               })}
             </div>
@@ -139,11 +162,10 @@ export function PhotosApp({ owner }: AppScreenProps) {
 
       {actionBar.mounted && (
         <div
-          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-space-md border-t border-text/5 bg-surface/95 px-space-lg pb-14 pt-space-lg shadow-sheet backdrop-blur ${
+          className={`absolute inset-x-0 bottom-0 z-10 flex items-center justify-end border-t border-text/5 bg-surface/95 px-space-lg pb-14 pt-space-lg shadow-sheet backdrop-blur ${
             actionBar.closing ? 'animate-slide-down' : 'animate-slide-up'
           }`}
         >
-          <span className="type-body-sm text-muted">{picked.size} selected</span>
           <PillButton
             variant="accent"
             disabled={picked.size === 0}
@@ -163,5 +185,63 @@ export function PhotosApp({ owner }: AppScreenProps) {
         onCancel={() => setProposal(null)}
       />
     </div>
+  );
+}
+
+interface PhotoTileProps {
+  photo: Photo;
+  isPicked: boolean;
+  selecting: boolean;
+  delay: number;
+  onOpen: () => void;
+  onToggle: () => void;
+  /** Long-press: enters select mode with this tile already picked. */
+  onLongPress: () => void;
+}
+
+/** One grid tile — a normal tap opens/toggles it, a long-press enters select mode. */
+function PhotoTile({
+  photo,
+  isPicked,
+  selecting,
+  delay,
+  onOpen,
+  onToggle,
+  onLongPress,
+}: PhotoTileProps) {
+  const longPress = useLongPress(onLongPress);
+  return (
+    <button
+      {...longPress.handlers}
+      onClick={() => {
+        // A long press already acted (entered select mode) — the tap that
+        // ends it shouldn't also open the photo.
+        if (longPress.wasLongPress()) return;
+        selecting ? onToggle() : onOpen();
+      }}
+      className="relative aspect-square animate-rise touch-manipulation overflow-hidden rounded-ds-xs bg-surface transition-transform duration-150 active:scale-[0.97]"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <img
+        src={photo.url}
+        alt={photo.location}
+        className={`h-full w-full object-cover transition-opacity duration-200 ${
+          selecting && !isPicked ? 'opacity-60' : ''
+        }`}
+      />
+      {selecting && (
+        <span
+          // Re-keying re-fires the pop each time the state flips.
+          key={isPicked ? 'on' : 'off'}
+          className={`absolute right-1.5 top-1.5 flex h-5 w-5 animate-pop items-center justify-center rounded-full border text-[11px] ${
+            isPicked
+              ? 'border-accent bg-accent text-white'
+              : 'border-white/70 bg-black/30 text-transparent'
+          }`}
+        >
+          ✓
+        </span>
+      )}
+    </button>
   );
 }

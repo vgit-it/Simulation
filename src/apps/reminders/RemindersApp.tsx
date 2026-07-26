@@ -44,7 +44,7 @@ export function RemindersApp({ owner }: AppScreenProps) {
     <div className="flex h-full flex-col bg-bg">
       <AppHeader title="Reminders" />
 
-      <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-lg pb-space-xl">
         {reminders.length === 0 ? (
           <EmptyState
             icon="⏰"
@@ -97,6 +97,8 @@ export function RemindersApp({ owner }: AppScreenProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Remind me to..."
+          enterKeyHint="done"
+          autoCapitalize="sentences"
           className="type-body-sm min-w-0 flex-1 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
         />
         <PillButton variant="accent" disabled={!draft.trim()} className="shrink-0">

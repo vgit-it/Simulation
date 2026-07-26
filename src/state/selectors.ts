@@ -142,12 +142,14 @@ export function notificationsFor(
   personId: string,
 ): Notification[] {
   const clearedAt = state.notificationsClearedAt[personId] ?? -1;
+  const dismissed = new Set(state.dismissedNotifications[personId] ?? []);
   const items: Notification[] = [];
 
   const unread = unreadThreadKeys(state, personId);
   for (const t of inboxThreads(state, personId)) {
     // unreadThreadKeys guarantees t.last is inbound (not the viewer's own).
     if (!unread.has(t.key) || t.last.at <= clearedAt) continue;
+    if (dismissed.has(`msg:${t.last.id}`)) continue;
     items.push({
       id: `msg:${t.last.id}`,
       at: t.last.at,
@@ -161,7 +163,7 @@ export function notificationsFor(
   }
 
   for (const r of remindersFor(state, personId)) {
-    if (r.at <= clearedAt) continue;
+    if (r.at <= clearedAt || dismissed.has(`rem:${r.id}`)) continue;
     items.push({
       id: `rem:${r.id}`,
       at: r.at,

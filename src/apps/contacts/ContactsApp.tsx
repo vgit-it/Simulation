@@ -32,7 +32,7 @@ export function ContactsApp({ owner }: AppScreenProps) {
     <div className="flex h-full flex-col bg-bg">
       <AppHeader title="Contacts" />
 
-      <div className="flex-1 overflow-y-auto px-space-sm pb-space-xl">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-sm pb-space-xl">
         {contacts.length === 0 ? (
           <EmptyState
             icon="👥"

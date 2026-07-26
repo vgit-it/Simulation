@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../../state';
 import { lastActivity, strandsFor, type Strand } from '../../strands';
 import { useConsolidate } from '../../strands/useConsolidate';
-import { AppHeader, EmptyState, PillButton } from '../../ui';
+import { AppHeader, EmptyState, LAYER, PillButton, useBackHandler } from '../../ui';
 import type { AppScreenProps } from '../types';
 import { ThreadDetail } from './ThreadDetail';
 
@@ -37,6 +37,7 @@ export function ThreadsApp({ owner }: AppScreenProps) {
 
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId ? strands.find((s) => s.id === openId) : undefined;
+  useBackHandler(openId !== null, () => setOpenId(null), LAYER.subview);
   if (open) {
     return (
       <ThreadDetail
@@ -58,7 +59,7 @@ export function ThreadsApp({ owner }: AppScreenProps) {
         }
       />
 
-      <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-lg pb-space-xl">
         {consolidate.lastReply && (
           <p className="type-caption mb-space-md text-center text-muted">
             {consolidate.lastReply}

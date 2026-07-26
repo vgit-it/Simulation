@@ -210,14 +210,19 @@ src/
     runner.ts                  # resolveStep(step, state) -> events/focus/screen (reuses plans/executor primitives)
     player.tsx                 # ScenarioPlayerProvider/useScenarioPlayer: playback that survives the Settings app closing
   ui/                          # shared primitives (Sheet, AppHeader, PillButton,
-                               #   Avatar, EmptyState) + motion (useMountTransition)
+                               #   Avatar, EmptyState, SelectionBar) + motion (useMountTransition)
+    backStack.ts               # pure back-press dispatcher: LAYER priorities + createBackStack
+    back.tsx                   # BackProvider/useBackHandler/useBack: the shared stack as React context
+    drag.ts                    # resolveDrag: pure commit/cancel math shared by every swipe gesture
+    useDrag.ts                 # pointer-drag hook (live offset + commit-on-release), reduced-motion aware
+    useLongPress.ts             # press-and-hold gesture (NavBar's Home hold, Photos' tile long-press)
   theme/                       # design-system + theme tokens -> CSS variables
   phone/                       # DeviceFrame (+ overlay slot), StatusBar, Lock/Home, Phone, NavBar
-    Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage); owns the shade
-    NavBar.tsx                 # One UI 3-button nav (Recents inert · Home · Back); hold Home invokes the assistant
-    StatusBar.tsx              # sim-clock time + signal/battery; unlocked, it's the shade pull-down handle (+ count badge)
-    NotificationShade.tsx      # pull-down shade over home/app: notification list + Clear all
-    NotificationCard.tsx       # one notification card (shared by the lock screen + shade)
+    Phone.tsx                  # takes screen/onScreenChange as controlled props (lifted to Stage); owns the shade + its drag
+    NavBar.tsx                 # One UI 3-button nav (Recents inert · Home · Back); Back dispatches the back stack, hold Home invokes the assistant
+    StatusBar.tsx              # sim-clock time + signal/battery; unlocked, it's the shade pull-down handle (tap or drag) (+ count badge)
+    NotificationShade.tsx      # pull-down shade over home/app: notification list + Clear all; drags open/closed
+    NotificationCard.tsx       # one notification card (shared by lock screen + shade); swipe either direction to dismiss
     screen.tsx                 # ScreenProvider/useScreenControl: shares the lifted screen with the in-phone assistant
   apps/                        # app registry + app renderers
     registry.ts                # appId -> React renderer
@@ -995,8 +1000,8 @@ All out-of-phone chrome is gone; the phone is self-contained.
   the research trace; analysts bracket that activity via `AppOpened settings`
   events (accepted trade-off, documented in `src/state/trace.ts`).
 
-Deferred: a real recents UI, nav-bar Back popping in-app sub-views (apps keep
-their header back-chevrons), interrupt-&-takeover from track ②.
+Deferred: a real recents UI, interrupt-&-takeover from track ②. (Nav-bar Back
+popping in-app sub-views landed in "Android interaction fidelity" below.)
 
 ### M5 — Real LLM provider (Gemini) ✅
 
@@ -1092,10 +1097,10 @@ plumbing.
 - **Smaller invoked reply**: the invoked assistant's response card dropped from
   `type-headline` to `type-title` — still forward-facing, less shouty.
 
-Deferred: per-notification dismissal (only Clear-all today), notification
-sources beyond messages/reminders (plan completions, e.g.), a real
-swipe/drag gesture for the shade (tap-to-open today), a composer inside the
-in-app ChatThread (Continue hands off instead).
+Deferred: notification sources beyond messages/reminders (plan completions,
+e.g.), a composer inside the in-app ChatThread (Continue hands off instead).
+(Per-notification dismissal and a real drag gesture for the shade landed in
+"Android interaction fidelity" below.)
 
 ### Slot-filling — the assistant asks for what's missing ✅ (current, pre-M5)
 
@@ -1405,6 +1410,69 @@ brain context (so plans know which effort they serve); logging the
 strand↔plan/chat link at creation rather than recovering it at consolidation;
 per-item dismissal; authored `status` transitions.
 
+### Android interaction fidelity ✅ (current, pre-M5)
+
+The phone rendered like One UI but didn't *behave* like Android: Back only
+exited an open app, everything was tap-only, multi-select was a header pill
+rather than a long-press, and the page fought a real touch screen (tap
+flashes, double-tap zoom, scroll-chaining, no keyboard hints). This closes
+that gap — purely shell/UI, no changes to the world seed, the brain, or the
+action pipeline (one additive event for per-notification dismissal aside).
+
+- **A back-press registry, not a special case** (`src/ui/backStack.ts` +
+  `back.tsx`, modelled on Android's `OnBackPressedDispatcher`): any overlay or
+  in-app sub-view registers `useBackHandler(active, handler, layer)` at a
+  `LAYER` (`overlay` > `shade` > `subview` > `mode` > `screen`); a Back press
+  always runs the highest-layer active handler. `BackProvider` is mounted
+  once in `App.tsx`'s `Stage`; `NavBar`'s Back button is just
+  `useBack().back()`. This is what lets Back pop a photo/thread/strand/chat
+  detail view, close the notification shade, dismiss a `Sheet`/`ProposalSheet`/
+  `PlanSheet`/the assistant surface, and exit Photos' select mode — each one
+  registers itself, and `Phone` registers the lowest-layer app→home fallback so
+  Back still does something with nothing else open. Home (`NavBar`'s `onHome`)
+  closes the shade before going home, same as Android.
+- **Four real drag gestures**, all sharing one pure resolver
+  (`src/ui/drag.ts`'s `resolveDrag` — commits past 25% of the extent or on a
+  fast flick) and one hook (`src/ui/useDrag.ts` — live offset while dragging,
+  a no-op follow under `prefers-reduced-motion`, commit/cancel on release):
+  swipe up to unlock (`LockScreen`, additive to the existing tap), drag the
+  status bar down / the shade's grabber up (`Phone` owns both drags; the shade
+  mounts as soon as the opening drag starts so it visibly follows the finger),
+  swipe a sheet's grabber down to dismiss (`ui/Sheet.tsx`, `PlanSheet.tsx`), and
+  swipe a notification card away in either direction
+  (`NotificationCard.tsx`) — a new **`NotificationDismissed`** event (per-id,
+  distinct from the `NotificationsCleared` watermark) + a
+  `dismissedNotifications` reducer set + a `notificationsFor` filter make a
+  swipe persist and survive reload, closing the "per-notification dismissal"
+  deferral from the notifications milestone.
+- **Long-press enters selection, not a header pill** (`src/ui/useLongPress.ts`,
+  extracted from NavBar's own hold-to-invoke logic so there's one
+  implementation of "hold"; `src/ui/SelectionBar.tsx`, the Android contextual
+  action bar — ✕ · N selected · Select/Deselect all). Long-pressing a Photos
+  tile enters select mode with that tile already picked and swaps the header
+  for the `SelectionBar`; a plain tap still opens/toggles. The header's
+  "Select" pill stays too, as a second, discoverable way in — Android keeps
+  both idioms in most of its own apps.
+- **Touch/scroll hygiene** (`src/index.css`): no tap-flash
+  (`-webkit-tap-highlight-color: transparent`), no double-tap zoom on controls
+  (`touch-action: manipulation` on buttons/header/nav, `touch-none` on the
+  finer-grained drag handles that need exclusive gesture capture), no
+  scroll-chaining past the bezel (`overscroll-behavior: none` on `body`,
+  `overscroll-*-contain` on every in-phone scroll container), and no
+  accidental text selection on controls. Every text `input`/`textarea` now
+  sets `enterKeyHint` (send/done) and `autoCapitalize`/`autoCorrect` (off for
+  the Gemini key/model fields), so the on-screen keyboard offers the right
+  action key.
+- **Convention**: a new overlay or sub-view registers a back handler; a new
+  gesture reuses `useDrag`/`resolveDrag` rather than hand-rolling pointer math.
+
+Deferred (explicitly out of scope for this stage): a collapsing app bar
+(`AppHeader`'s large-title header still doesn't shrink on scroll — see its own
+doc comment), a real Recents surface (the nav bar's Recents button stays
+decorative), and the home-screen shell (app drawer/dock/paging, the `Lock`
+pill) — none of these are Android *interaction* mismatches in the same sense;
+they're missing surfaces, tracked separately for M6.
+
 ### M6 — More device shells & richer visuals
 
 Watch / glasses / appliance frames reusing the app + theme registries; optional
@@ -1431,3 +1499,10 @@ image generation for scenario output.
   uses.
 - Prefer extending schemas and registries over adding conditionals; the codebase
   should stay "add a file, it shows up."
+- **Interaction fidelity is not optional polish** — this is meant to be opened
+  on a real phone (see "Android interaction fidelity"). A new overlay or
+  in-app sub-view must register a `useBackHandler` (`src/ui/back.tsx`) at the
+  right `LAYER` so Back can dismiss it; a new swipe gesture reuses
+  `useDrag`/`resolveDrag` (`src/ui/useDrag.ts`/`drag.ts`) rather than
+  hand-rolling pointer math; a new text input sets `enterKeyHint` and
+  `autoCapitalize`/`autoCorrect` appropriately.
