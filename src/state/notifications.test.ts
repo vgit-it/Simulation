@@ -89,4 +89,81 @@ describe('notifications', () => {
     expect(notificationCountFor(after, 'ava-chen')).toBe(1);
     expect(notificationsFor(after, 'ava-chen')[0].body).toBe('Water the plants');
   });
+
+  it('swiping one notification away removes only that one', () => {
+    const state = withEvents(inboundShare, reminder);
+    const msgId = notificationsFor(state, 'ava-chen').find(
+      (n) => n.kind === 'message',
+    )!.id;
+    const after = reduce(state, {
+      kind: 'event',
+      event: {
+        type: 'NotificationDismissed',
+        at: 2000,
+        person: 'ava-chen',
+        id: msgId,
+      },
+    });
+    const remaining = notificationsFor(after, 'ava-chen');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].kind).toBe('reminder');
+  });
+
+  it('a dismissal is per-notification, not a watermark — it survives newer activity', () => {
+    const state = withEvents(inboundShare, reminder);
+    const remId = notificationsFor(state, 'ava-chen').find(
+      (n) => n.kind === 'reminder',
+    )!.id;
+    const dismissed = reduce(state, {
+      kind: 'event',
+      event: {
+        type: 'NotificationDismissed',
+        at: 2000,
+        person: 'ava-chen',
+        id: remId,
+      },
+    });
+    const after = reduce(dismissed, {
+      kind: 'event',
+      event: {
+        type: 'ReminderCreated',
+        id: 'r2',
+        at: 3000,
+        person: 'ava-chen',
+        title: 'Water the plants',
+        related: [],
+      } as SimEvent,
+    });
+    const remaining = notificationsFor(after, 'ava-chen');
+    // The dismissed reminder stays gone; the message and the new reminder show.
+    expect(remaining).toHaveLength(2);
+    expect(remaining.map((n) => n.body)).toEqual([
+      'Water the plants',
+      'Sent you a photo',
+    ]);
+  });
+
+  it('dismissing the same id twice is idempotent', () => {
+    const state = withEvents(inboundShare);
+    const msgId = notificationsFor(state, 'ava-chen')[0].id;
+    const once = reduce(state, {
+      kind: 'event',
+      event: {
+        type: 'NotificationDismissed',
+        at: 2000,
+        person: 'ava-chen',
+        id: msgId,
+      },
+    });
+    const twice = reduce(once, {
+      kind: 'event',
+      event: {
+        type: 'NotificationDismissed',
+        at: 2500,
+        person: 'ava-chen',
+        id: msgId,
+      },
+    });
+    expect(twice.dismissedNotifications['ava-chen']).toEqual([msgId]);
+  });
 });

@@ -28,7 +28,7 @@ export function HomeScreen({ owner, device, onOpenApp, onLock }: HomeScreenProps
   // second badged app appears, lift this into a per-app badge registry.
   const unread = unreadCountFor(state, owner.id);
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-bg bg-gradient-to-b from-accent/15 via-bg to-bg px-space-lg pb-16 pt-space-lg">
+    <div className="flex h-full flex-col overflow-y-auto overscroll-y-contain bg-bg bg-gradient-to-b from-accent/15 via-bg to-bg px-space-lg pb-16 pt-space-lg">
       <div className="mb-space-2xl flex animate-rise items-center justify-between rounded-ds-lg bg-surface/80 p-space-lg backdrop-blur-sm">
         <div>
           <p className="type-caption text-muted">{greeting(now.getHours())}</p>

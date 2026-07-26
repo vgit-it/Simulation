@@ -1,6 +1,10 @@
 import { notificationsFor, useNow, useStore } from '../state';
+import { useDrag } from '../ui';
 import type { LoadedPerson } from '../world';
 import { NotificationCard } from './NotificationCard';
+
+/** Px of upward swipe that counts as "fully swiped" (unlock commits). */
+const UNLOCK_EXTENT = 160;
 
 function bigTime(d: Date): string {
   const h = d.getHours();
@@ -32,12 +36,23 @@ interface LockScreenProps {
  */
 export function LockScreen({ owner, onUnlock, onOpenApp }: LockScreenProps) {
   const now = useNow();
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const notifications = notificationsFor(state, owner.id);
+
+  function dismiss(id: string) {
+    dispatch({ type: 'NotificationDismissed', at: state.clock, person: owner.id, id });
+  }
+  // Swipe up commits to unlock, same as a tap — the drag is additive, so the
+  // existing tap-to-unlock affordance (and anything driving it) keeps working.
+  const drag = useDrag({ axis: 'y', direction: -1, extent: UNLOCK_EXTENT, onCommit: onUnlock });
   return (
     <button
       onClick={onUnlock}
-      className="flex h-full w-full flex-col items-center overflow-y-auto bg-bg bg-gradient-to-b from-accent/25 via-bg to-bg px-6 pb-6 pt-20 text-center outline-none transition-transform duration-150 active:scale-[0.99]"
+      {...drag.handlers}
+      style={{ transform: drag.offset ? `translateY(${drag.offset}px)` : undefined }}
+      className={`flex h-full w-full touch-none flex-col items-center overflow-y-auto overscroll-y-contain bg-bg bg-gradient-to-b from-accent/25 via-bg to-bg px-6 pb-6 pt-20 text-center outline-none active:scale-[0.99] ${
+        drag.dragging ? '' : 'transition-transform duration-150'
+      }`}
       aria-label="Unlock phone"
     >
       <div className="flex flex-col items-center">
@@ -52,9 +67,13 @@ export function LockScreen({ owner, onUnlock, onOpenApp }: LockScreenProps) {
 
       {notifications.length > 0 && (
         <div
-          className="mt-space-xl flex w-full flex-col gap-space-sm"
-          // The cards are interactive; a tap inside must not bubble to unlock.
+          className="mt-space-xl flex w-full touch-pan-y flex-col gap-space-sm"
+          // The cards are interactive (tap AND their own swipe-to-dismiss
+          // drag); none of that may bubble to the outer swipe-up-to-unlock.
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
         >
           {notifications.map((n, i) => (
             <NotificationCard
@@ -62,6 +81,7 @@ export function LockScreen({ owner, onUnlock, onOpenApp }: LockScreenProps) {
               ownerId={owner.id}
               notification={n}
               onOpen={() => onOpenApp(n.appId)}
+              onDismiss={() => dismiss(n.id)}
               className="animate-rise"
               style={{ animationDelay: `${150 + Math.min(i, 8) * 40}ms` }}
             />
@@ -79,7 +99,7 @@ export function LockScreen({ owner, onUnlock, onOpenApp }: LockScreenProps) {
       </span>
 
       <span className="type-caption mb-space-lg mt-space-md text-muted motion-safe:animate-breathe">
-        Tap to unlock
+        Swipe up to unlock
       </span>
 
       {/* frosted corner shortcuts, One UI style (decorative) */}

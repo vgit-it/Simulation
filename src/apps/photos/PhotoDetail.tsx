@@ -64,7 +64,7 @@ export function PhotoDetail({ photo, onBack }: PhotoDetailProps) {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-space-lg py-space-lg">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-lg py-space-lg">
         <div
           className="flex animate-rise items-center justify-between"
           style={{ animationDelay: '80ms' }}

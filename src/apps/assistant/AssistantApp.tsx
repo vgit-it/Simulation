@@ -7,7 +7,7 @@ import {
   useStore,
 } from '../../state';
 import { useConsolidate } from '../../strands/useConsolidate';
-import { AppHeader, EmptyState, PillButton } from '../../ui';
+import { AppHeader, EmptyState, LAYER, PillButton, useBackHandler } from '../../ui';
 import { resolvePerson } from '../../world';
 import type { AppScreenProps } from '../types';
 import { ChatThread } from './ChatThread';
@@ -49,6 +49,7 @@ export function AssistantApp({ owner }: AppScreenProps) {
   const openSession = openId
     ? sessions.find((s) => s.id === openId)
     : undefined;
+  useBackHandler(openId !== null, () => setOpenId(null), LAYER.subview);
   if (openSession) {
     return (
       <ChatThread
@@ -77,7 +78,7 @@ export function AssistantApp({ owner }: AppScreenProps) {
         }
       />
 
-      <div className="flex-1 overflow-y-auto px-space-lg pb-space-xl">
+      <div className="flex-1 overflow-y-auto overscroll-y-contain px-space-lg pb-space-xl">
         {consolidate.lastReply && (
           <p className="type-caption mb-space-md text-center text-muted">
             🧵 {consolidate.lastReply}

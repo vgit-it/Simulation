@@ -1,30 +1,35 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useAssistantControl } from '../assistant/control';
 import { assembleContext } from '../context';
 import { intelligenceFor } from '../intelligence';
 import { useSession } from '../session';
 import { useStore } from '../state';
-import { useScreenControl } from './screen';
+import { useBack, useLongPress } from '../ui';
 
 /** How long the home button must be held before the assistant wakes. */
 const HOLD_MS = 450;
+
+interface NavBarProps {
+  /** Home: go home, closing the shade/overlays first (Android's Home behavior). */
+  onHome: () => void;
+}
 
 /**
  * One UI 3-button navigation bar: Recents ||| · Home ○ · Back ◁. Rendered as
  * a bottom layer over home and app screens (the lock layer covers it).
  *
- * - Back exits the open app to home (no-op on home).
- * - Home taps go home; **press-and-hold invokes the assistant** — the classic
- *   3-button-nav gesture, replacing the old floating ✨ button. The beacon
- *   halo/dot that lived on the FAB moves here: it shows when the brain has a
- *   suggestion waiting.
+ * - **Back dispatches the shared back-press stack** (`src/ui/back.tsx`):
+ *   whatever is topmost — an overlay, the shade, an in-app sub-view, select
+ *   mode — handles it; Phone registers the app -> home fallback so Back still
+ *   works with nothing else open.
+ * - Home taps go home (closing the shade via `onHome`); **press-and-hold
+ *   invokes the assistant** — the classic 3-button-nav gesture, replacing the
+ *   old floating ✨ button. The beacon halo/dot that lived on the FAB moves
+ *   here: it shows when the brain has a suggestion waiting.
  * - Recents is decorative; the prototype has no recents surface.
- *
- * Navigation routes through the same lifted screen setter every other lever
- * uses; invocation routes through the same AssistantControl the FAB used.
  */
-export function NavBar() {
-  const { screen, setScreen } = useScreenControl();
+export function NavBar({ onHome }: NavBarProps) {
+  const { back } = useBack();
   const { session } = useSession();
   const { state } = useStore();
   const control = useAssistantControl();
@@ -36,26 +41,7 @@ export function NavBar() {
     return intelligenceFor(session.personId).suggest(ctx);
   }, [session, state]);
 
-  const holdTimer = useRef<ReturnType<typeof setTimeout>>();
-  const held = useRef(false);
-  useEffect(() => () => clearTimeout(holdTimer.current), []);
-
-  function onHomeDown() {
-    held.current = false;
-    holdTimer.current = setTimeout(() => {
-      held.current = true;
-      control.open();
-    }, HOLD_MS);
-  }
-
-  function onHomeUp() {
-    clearTimeout(holdTimer.current);
-    if (!held.current) setScreen({ kind: 'home' });
-  }
-
-  function onHomeCancel() {
-    clearTimeout(holdTimer.current);
-  }
+  const longPress = useLongPress(() => control.open(), HOLD_MS);
 
   const buttonClass =
     'flex h-full flex-1 items-center justify-center text-text/70 transition duration-150 active:scale-95 active:text-text';
@@ -72,11 +58,11 @@ export function NavBar() {
 
       <button
         aria-label="Home (hold for assistant)"
-        onPointerDown={onHomeDown}
-        onPointerUp={onHomeUp}
-        onPointerLeave={onHomeCancel}
-        onPointerCancel={onHomeCancel}
-        onContextMenu={(e) => e.preventDefault()}
+        {...longPress.handlers}
+        onPointerUp={(e) => {
+          longPress.handlers.onPointerUp(e);
+          if (!longPress.wasLongPress()) onHome();
+        }}
         className={buttonClass}
       >
         <span className="relative" aria-hidden>
@@ -91,13 +77,7 @@ export function NavBar() {
         </span>
       </button>
 
-      <button
-        aria-label="Back"
-        onClick={() => {
-          if (screen.kind === 'app') setScreen({ kind: 'home' });
-        }}
-        className={buttonClass}
-      >
+      <button aria-label="Back" onClick={() => back()} className={buttonClass}>
         <svg
           viewBox="0 0 16 16"
           className="h-3.5 w-3.5"

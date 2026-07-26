@@ -3,7 +3,15 @@ import { commit, propose } from '../../actions';
 import { assembleContext } from '../../context';
 import { useSession } from '../../session';
 import { useStore, type Thread as ThreadData } from '../../state';
-import { AppHeader, EXIT, OverlayLayer, PillButton, useMountTransition } from '../../ui';
+import {
+  AppHeader,
+  EXIT,
+  LAYER,
+  OverlayLayer,
+  PillButton,
+  useBackHandler,
+  useMountTransition,
+} from '../../ui';
 import { resolveAsset, resolvePerson, type Photo } from '../../world';
 
 function timeLabel(at: number): string {
@@ -52,6 +60,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
 
   const [zoom, setZoom] = useState<Photo | null>(null);
   const lightbox = useMountTransition(zoom !== null, EXIT.fade);
+  useBackHandler(zoom !== null, () => setZoom(null), LAYER.overlay);
   const lastZoom = useRef<Photo | null>(null);
   if (zoom) lastZoom.current = zoom;
   const shownZoom = zoom ?? lastZoom.current;
@@ -72,7 +81,7 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
         <AppHeader title={title} onBack={onBack} backLabel="Messages" />
       </div>
 
-      <div className="flex flex-1 flex-col gap-space-md overflow-y-auto px-space-lg py-space-lg">
+      <div className="flex flex-1 flex-col gap-space-md overflow-y-auto overscroll-y-contain px-space-lg py-space-lg">
         {thread.messages.map((m, i) => {
           const mine = m.from === ownerId;
           const sender = resolvePerson(ownerId, m.from);
@@ -138,6 +147,9 @@ export function Thread({ thread, ownerId, onBack }: ThreadProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Message..."
+          enterKeyHint="send"
+          autoCapitalize="sentences"
+          autoCorrect="on"
           className="type-body-sm min-w-0 flex-1 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
         />
         <PillButton variant="accent" disabled={!draft.trim()} className="shrink-0">

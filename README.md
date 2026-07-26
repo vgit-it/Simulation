@@ -169,4 +169,12 @@ subpath and can be opened on a real phone.
   "skip the reminder") alongside tap-to-strike, backed by a new
   `PersonIntelligence.revisePlan` brain method — and dropped its supervision
   picker: every plan now runs `confirm-once` ("watch it run") by default.
+- **Android interaction fidelity (pre-M5)** ✅ Back is a real dispatcher
+  (`src/ui/backStack.ts`) that pops sub-views, dismisses sheets, and closes the
+  shade instead of only exiting an app; swipe-up-to-unlock, drag-the-shade,
+  swipe-a-sheet-down, and swipe-away-a-notification are real drag gestures
+  (one shared `resolveDrag`); long-pressing a photo enters multi-select with a
+  proper contextual action bar; and the page finally behaves like it's on a
+  touch screen (no tap flash, no double-tap zoom, no scroll-chaining, correct
+  keyboard hints).
 - **M6** More device shells (watch, glasses, appliances) + generated visuals.

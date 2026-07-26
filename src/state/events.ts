@@ -64,6 +64,20 @@ export interface NotificationsClearedEvent {
   person: string;
 }
 
+/**
+ * A single notification was swiped away — distinct from "Clear all"
+ * (`NotificationsCleared`), which is a watermark over everything showing.
+ * This is per-id so dismissing an older card can't be undone by a newer
+ * notification's watermark, and swiping one never touches the others.
+ */
+export interface NotificationDismissedEvent {
+  type: 'NotificationDismissed';
+  at: number;
+  person: string;
+  /** The notification's stable id (see `Notification.id` in selectors.ts). */
+  id: string;
+}
+
 /** One turn of a person's conversation with their assistant. */
 export interface ChatMessageEvent {
   type: 'ChatMessage';
@@ -182,6 +196,7 @@ export type SimEvent =
   | ClockSetEvent
   | ThreadReadEvent
   | NotificationsClearedEvent
+  | NotificationDismissedEvent
   | ChatMessageEvent
   | ReminderCreatedEvent
   | PlanProposedEvent

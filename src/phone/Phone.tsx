@@ -5,12 +5,15 @@ import { useSession } from '../session';
 import { notificationsFor, useStore } from '../state';
 import { appRegistry } from '../apps/registry';
 import { Assistant } from '../assistant/Assistant';
-import { EXIT, useMountTransition } from '../ui';
+import { EXIT, LAYER, useBackHandler, useDrag, useMountTransition } from '../ui';
 import { DeviceFrame } from './DeviceFrame';
 import { LockScreen } from './LockScreen';
 import { HomeScreen } from './HomeScreen';
 import { NavBar } from './NavBar';
 import { NotificationShade } from './NotificationShade';
+
+/** Px of vertical drag that counts as "fully dragged" for the shade. */
+const SHADE_DRAG_EXTENT = 120;
 
 export type Screen =
   | { kind: 'locked' }
@@ -61,7 +64,38 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
     [state, session.personId],
   );
   const [shadeOpen, setShadeOpen] = useState(false);
-  const shade = useMountTransition(shadeOpen && !locked, EXIT.shade);
+  // Drag down on the status bar opens the shade; drag up on it closes it —
+  // both follow the finger live (see `dragProgress` below), the tap-to-open
+  // handle in DeviceFrame's onOpenShade stays as the instant alternative.
+  const openShadeDrag = useDrag({
+    axis: 'y',
+    direction: 1,
+    extent: SHADE_DRAG_EXTENT,
+    onCommit: () => setShadeOpen(true),
+    disabled: locked || shadeOpen,
+  });
+  const closeShadeDrag = useDrag({
+    axis: 'y',
+    direction: -1,
+    extent: SHADE_DRAG_EXTENT,
+    onCommit: () => setShadeOpen(false),
+    disabled: locked || !shadeOpen,
+  });
+  // The shade mounts as soon as an opening drag starts, not just once it's
+  // fully committed, so it can visibly follow the finger down.
+  const shade = useMountTransition(
+    (shadeOpen || openShadeDrag.dragging) && !locked,
+    EXIT.shade,
+  );
+  // 0 (fully closed) .. 1 (fully open), driven by whichever drag is live;
+  // undefined when neither is dragging, so the normal CSS enter/exit
+  // animation takes over instead of this inline override.
+  const shadeDragProgress =
+    openShadeDrag.dragging
+      ? openShadeDrag.offset / SHADE_DRAG_EXTENT
+      : closeShadeDrag.dragging
+        ? 1 + closeShadeDrag.offset / SHADE_DRAG_EXTENT
+        : undefined;
   // Picking up another phone (or locking) closes any open shade.
   useEffect(() => {
     setShadeOpen(false);
@@ -75,6 +109,22 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
   useEffect(() => {
     hasUnlocked.current = false;
   }, [session.personId]);
+
+  // Back-press fallback: closes the shade if it's open, else exits an open app
+  // to home. Registered at the lowest layers so any overlay, sub-view, or
+  // select-mode handler registered elsewhere always wins first.
+  useBackHandler(shadeOpen, () => setShadeOpen(false), LAYER.shade);
+  useBackHandler(
+    !locked && appId !== null,
+    () => onScreenChange({ kind: 'home' }),
+    LAYER.screen,
+  );
+
+  /** Home: go home, closing the shade first (Android's Home behavior). */
+  function goHome() {
+    setShadeOpen(false);
+    onScreenChange({ kind: 'home' });
+  }
 
   function openApp(id: string) {
     dispatch({
@@ -107,6 +157,16 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
     });
   }
 
+  /** Swipe one notification away. */
+  function dismissNotification(id: string) {
+    dispatch({
+      type: 'NotificationDismissed',
+      at: state.clock,
+      person: session.personId,
+      id,
+    });
+  }
+
   const shownAppId = appId ?? lastAppId.current;
 
   return (
@@ -115,6 +175,7 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
       overlay={!locked ? <Assistant /> : undefined}
       notificationCount={locked ? 0 : notifications.length}
       onOpenShade={locked ? undefined : () => setShadeOpen(true)}
+      shadeDragHandlers={locked ? undefined : openShadeDrag.handlers}
     >
       {/* Base layer: home, revealed by unlock and by closing an app. */}
       <HomeScreen
@@ -142,10 +203,12 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
         </div>
       )}
 
-      {/* Nav layer: the 3-button bar sits above home + app screens but below
-          the lock layer (z-20), which covers it for free while locked. */}
-      <div className="absolute inset-x-0 bottom-0 z-10">
-        <NavBar />
+      {/* Nav layer: the 3-button bar sits above home + app screens AND above
+          the shade (z-20) — like a real nav bar, it stays reachable (Back can
+          close the shade) even with it pulled down — but below the lock layer
+          (z-28), which covers it for free while locked. */}
+      <div className="absolute inset-x-0 bottom-0 z-[25]">
+        <NavBar onHome={goHome} />
       </div>
 
       {/* Notification shade: drops from the top over home/app (z-20). Only
@@ -155,16 +218,20 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
           ownerId={session.personId}
           notifications={notifications}
           closing={shade.closing}
+          dragProgress={shadeDragProgress}
+          dragHandlers={closeShadeDrag.handlers}
           onOpen={openAppFromShade}
+          onDismiss={dismissNotification}
           onClear={clearNotifications}
           onClose={() => setShadeOpen(false)}
         />
       )}
 
-      {/* Lock layer: covers everything; slides away on unlock. */}
+      {/* Lock layer: covers everything (including the nav bar, z-[25]); slides
+          away on unlock. */}
       {lock.mounted && (
         <div
-          className={`absolute inset-0 z-20 ${
+          className={`absolute inset-0 z-[28] ${
             lock.closing
               ? 'animate-lock-away'
               : hasUnlocked.current

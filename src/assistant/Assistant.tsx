@@ -25,9 +25,11 @@ import { useAssistantControl } from './control';
 import { chatHistoryFor, useStore } from '../state';
 import {
   EXIT,
+  LAYER,
   OverlayLayer,
   THINKING_BEAT_MS,
   prefersReducedMotion,
+  useBackHandler,
   useMountTransition,
 } from '../ui';
 
@@ -86,6 +88,9 @@ export function Assistant() {
   if (runner.active) lastRunRef.current = runner.active;
   const hud = useMountTransition(Boolean(runner.active), EXIT.hud);
   const surface = useMountTransition(open, EXIT.sheet);
+  // Mirrors the outside-tap rule below: Back is inert while the assistant is
+  // waiting on an answer, so it can't silently strand a half-built plan.
+  useBackHandler(open && !resolver, () => control.close(), LAYER.overlay);
   useEffect(() => {
     if (open && surface.mounted && !thinking) inputRef.current?.focus();
   }, [open, surface.mounted, thinking]);
@@ -428,6 +433,8 @@ export function Assistant() {
           onChange={(e) => setChatInput(e.target.value)}
           placeholder="How can I help?"
           disabled={thinking}
+          enterKeyHint="send"
+          autoCapitalize="sentences"
           className="type-body min-w-0 flex-1 rounded-ds-full bg-text/90 px-space-lg py-3 text-bg placeholder:text-bg/50 focus:outline-none disabled:opacity-60"
         />
         <button
@@ -478,7 +485,7 @@ export function Assistant() {
                   surface.closing ? 'animate-slide-down' : 'animate-slide-up'
                 }`}
               >
-                <div className="min-h-0 flex-1 overflow-y-auto pb-space-lg pt-space-lg">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-space-lg pt-space-lg">
                   {thinking ? (
                     <div
                       aria-label="Assistant is thinking"
@@ -510,19 +517,19 @@ export function Assistant() {
                           <p className="type-caption mb-1 mt-space-sm text-text/70">
                             system
                           </p>
-                          <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+                          <pre className="max-h-36 overflow-auto overscroll-contain whitespace-pre-wrap rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
                             {lastRequest.system}
                           </pre>
                           <p className="type-caption mb-1 mt-space-sm text-text/70">
                             tools ({lastRequest.tools.length})
                           </p>
-                          <pre className="max-h-36 overflow-auto rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+                          <pre className="max-h-36 overflow-auto overscroll-contain rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
                             {JSON.stringify(lastRequest.tools, null, 2)}
                           </pre>
                           <p className="type-caption mb-1 mt-space-sm text-text/70">
                             messages ({lastRequest.messages.length})
                           </p>
-                          <pre className="max-h-36 overflow-auto rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
+                          <pre className="max-h-36 overflow-auto overscroll-contain rounded-ds-xs bg-black/30 p-2 font-mono text-[10px] leading-relaxed text-text/80">
                             {JSON.stringify(lastRequest.messages, null, 2)}
                           </pre>
                         </div>

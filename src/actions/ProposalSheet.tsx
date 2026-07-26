@@ -126,6 +126,8 @@ export function ProposalSheet({ proposal, onSent, onCancel }: ProposalSheetProps
           onChange={(e) => editMessage(e.target.value)}
           rows={3}
           aria-label="Edit message"
+          enterKeyHint="done"
+          autoCapitalize="sentences"
           className="type-body mt-space-md w-full resize-none rounded-card bg-bg/60 p-space-md text-text/90 ring-1 ring-text/5 focus:outline-none focus:ring-accent/40"
         />
       ) : (

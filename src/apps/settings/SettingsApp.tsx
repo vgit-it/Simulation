@@ -106,7 +106,7 @@ export function SettingsApp(_props: AppScreenProps) {
     <div className="flex h-full flex-col bg-bg">
       <AppHeader title="Settings" />
 
-      <div className="flex flex-1 flex-col gap-space-lg overflow-y-auto px-space-lg pb-24">
+      <div className="flex flex-1 flex-col gap-space-lg overflow-y-auto overscroll-y-contain px-space-lg pb-24">
         <Section label="Simulation">
           <div className="flex items-center justify-between gap-space-md">
             <span className="type-body">🕒 {timeLabel(now)}</span>
@@ -178,6 +178,9 @@ export function SettingsApp(_props: AppScreenProps) {
                 }}
                 placeholder="Gemini API key"
                 autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="type-body-sm min-w-0 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
               />
               <label className="type-caption mt-space-xs text-muted">Model</label>
@@ -189,6 +192,9 @@ export function SettingsApp(_props: AppScreenProps) {
                 }}
                 placeholder="gemini-flash-latest"
                 autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="type-body-sm min-w-0 rounded-ds-full bg-bg/60 px-space-lg py-2 text-text ring-1 ring-text/10 placeholder:text-muted focus:outline-none"
               />
             </div>

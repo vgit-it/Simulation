@@ -84,6 +84,23 @@ body {
   background: #05070d;
   font-family: var(--sim-font);
   -webkit-font-smoothing: antialiased;
+  /* This is meant to be opened on a real phone: stop the page itself from
+     rubber-banding/pull-to-refreshing behind the phone frame. */
+  overscroll-behavior: none;
+}
+
+/* Touch hygiene for a page driven by a touch screen, not a mouse: no tap
+   flash, no accidental double-tap zoom, no text selection on controls. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+[role='button'],
+header,
+nav {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Motion is presentation only — collapse it for users who ask for less. */

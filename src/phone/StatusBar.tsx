@@ -1,4 +1,5 @@
 import { useNow } from '../state';
+import type { DragHandlers } from '../ui';
 
 function formatTime(d: Date): string {
   const h = d.getHours();
@@ -11,10 +12,16 @@ interface StatusBarProps {
   notificationCount?: number;
   /** Tapping the bar pulls the notification shade down (unlocked only). */
   onOpenShade?: () => void;
+  /** Dragging down on the bar pulls the shade down, following the finger. */
+  dragHandlers?: DragHandlers;
 }
 
 /** Deterministic status bar — time comes from the simulation clock. */
-export function StatusBar({ notificationCount = 0, onOpenShade }: StatusBarProps) {
+export function StatusBar({
+  notificationCount = 0,
+  onOpenShade,
+  dragHandlers,
+}: StatusBarProps) {
   const now = useNow();
   const inner = (
     <>
@@ -54,8 +61,9 @@ export function StatusBar({ notificationCount = 0, onOpenShade }: StatusBarProps
     <button
       type="button"
       onClick={onOpenShade}
+      {...dragHandlers}
       aria-label="Open notifications"
-      className={`${layout} select-none`}
+      className={`${layout} touch-none select-none`}
     >
       {inner}
     </button>
