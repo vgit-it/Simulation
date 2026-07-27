@@ -205,9 +205,11 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
 
       {/* Nav layer: the 3-button bar sits above home + app screens AND above
           the shade (z-20) — like a real nav bar, it stays reachable (Back can
-          close the shade) even with it pulled down — but below the lock layer
-          (z-28), which covers it for free while locked. */}
-      <div className="absolute inset-x-0 bottom-0 z-[25]">
+          close the shade) even with it pulled down. It ties with the lock
+          layer (also z-30), but lock renders after it here, so lock still
+          wins that tie and covers it for free while locked; overlay sheets
+          (also z-30) portal in even later, so they always paint above both. */}
+      <div className="absolute inset-x-0 bottom-0 z-30">
         <NavBar onHome={goHome} />
       </div>
 
@@ -227,11 +229,12 @@ export function Phone({ screen, onScreenChange }: PhoneProps) {
         />
       )}
 
-      {/* Lock layer: covers everything (including the nav bar, z-[25]); slides
-          away on unlock. */}
+      {/* Lock layer: covers everything (including the nav bar); slides away on
+          unlock. Renders after the nav div above, so at the same z-30 it
+          still wins the paint-order tie. */}
       {lock.mounted && (
         <div
-          className={`absolute inset-0 z-[28] ${
+          className={`absolute inset-0 z-30 ${
             lock.closing
               ? 'animate-lock-away'
               : hasUnlocked.current
