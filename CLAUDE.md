@@ -1473,6 +1473,36 @@ decorative), and the home-screen shell (app drawer/dock/paging, the `Lock`
 pill) — none of these are Android *interaction* mismatches in the same sense;
 they're missing surfaces, tracked separately for M6.
 
+### PWA — installable, full-screen on a real phone ✅ (current, pre-M5)
+
+Since the whole point is "opened on a real phone" (see project intro), the
+site is now installable as a standalone app — no browser address bar/chrome
+once added to the home screen, closing the gap between the phone-shell UI and
+an actual full-screen phone experience.
+
+- **`public/manifest.webmanifest`**: `display: standalone`, `orientation:
+  portrait`, `background_color`/`theme_color` matching the shell's dark
+  backdrop (`#0b0f1a`), and two PNG icons (`public/icons/icon-192.png` /
+  `icon-512.png`, rendered from the same 📱 the inline SVG favicon already
+  used). `start_url`/`scope` are `"./"` — relative, like `vite.config.ts`'s
+  `base`, so install still works from a GitHub Pages project subpath.
+- **`index.html`** links the manifest, adds `apple-touch-icon.png` (iOS
+  ignores the manifest for launch display, reading `apple-mobile-web-app-*`
+  meta tags instead: `-capable` for standalone, `-status-bar-style
+  black-translucent` so the status bar overlays instead of adding a bar above
+  the phone shell's own `StatusBar`), and the viewport gained
+  `maximum-scale=1.0, user-scalable=no` — pinch-zoom would break the
+  full-screen-phone illusion the same way `NavBar`'s tap-flash/double-tap-zoom
+  fixes ("Android interaction fidelity") already guard against.
+- **Install is a user action** (Safari/Chrome "Add to Home Screen"/"Install
+  app") — nothing here auto-prompts; this only makes that action produce a
+  proper chrome-free launch instead of a bookmark that still opens the browser
+  frame.
+
+Deferred: a service worker (offline caching — the mock brain is already
+offline/token-free, but the static assets themselves aren't cached without
+one), a maskable icon variant (today's icons are `purpose: any` only).
+
 ### M6 — More device shells & richer visuals
 
 Watch / glasses / appliance frames reusing the app + theme registries; optional
